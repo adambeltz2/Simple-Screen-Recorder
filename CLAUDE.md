@@ -70,7 +70,7 @@ The owner (Adam) wants hobby apps **phone-first, self-contained and offline**. K
 - **WebP frame offsets must be even** (the container stores x/2, y/2). `_diff(..., align=true)` snaps the region origin down.
 - **Worker messages must be processed one at a time** (`encoder-worker.js` chains a promise). WebP frames are async; without the queue they interleave.
 - **Layout:** `body` needs `grid-template-columns: minmax(0, 1fr)`. The timeline strip is thousands of pixels wide and an implicit `auto` column grows to fit it, pushing the preview and panel off screen.
-- **Safari can't encode WebP** (canvas returns PNG). `webpSupported()` gates the button. Android browsers have no `getDisplayMedia`, so phone users import a screen recording instead; the empty state says so.
+- **Safari can't encode WebP** (canvas returns PNG). `webpSupported()` gates the button. Android browsers have no `getDisplayMedia`, so the Record buttons are hidden there and phone users import a screen recording instead; the empty state says so.
 - `confirm()` is used before replacing a project. Playwright auto-dismisses dialogs, so tests must accept them.
 
 ## Testing
@@ -81,7 +81,7 @@ python3 tests/smoke.py --only core,persist
 SHOTS_DIR=/tmp/shots python3 tests/smoke.py --only phone   # keep phone screenshots
 ```
 
-It serves the repo itself and drives real Chrome (`/usr/bin/google-chrome`, `--no-sandbox`) with Playwright. Needs `ffmpeg`/`ffprobe` and Pillow. Suites: `core`, `export`, `export2` (size limit, fades, cancel), `persist`, `edit`, `addclip`, `record`, `phone` (Pixel 7 touch emulation: overflow, tap-target size, 16px inputs, sticky preview, finger drags), `assets` (every imported module is in `sw.js` `ASSETS`; every named import exists), `offline` (real service worker, network cut), `theme` (toggle, persistence, contrast, icons), `countdown` (flashing overlay, tab title, cancel), `mode` (Simple steps, presets, hand-off to Advanced, phone). Most suites start in Advanced; pass `mode='simple'` to `new_page` for the default.
+It serves the repo itself and drives real Chrome (`/usr/bin/google-chrome`, `--no-sandbox`) with Playwright. Needs `ffmpeg`/`ffprobe` and Pillow. Suites: `core`, `export`, `export2` (size limit, fades, cancel), `persist`, `edit`, `addclip`, `record`, `phone` (Pixel 7 touch emulation: overflow, tap-target size, 16px inputs, sticky preview, finger drags), `assets` (every imported module is in `sw.js` `ASSETS`; every named import exists), `offline` (real service worker, network cut), `theme` (toggle, persistence, contrast, icons), `countdown` (flashing overlay, tab title, cancel), `nocapture` (Record hidden without screen capture), `mode` (Simple steps, presets, hand-off to Advanced, phone). Most suites start in Advanced; pass `mode='simple'` to `new_page` for the default.
 
 Run the full suite before pushing anything that touches more than one module. `eslint` with `no-undef` is a good extra check for missing imports, but it can't see a *missing export*; the `assets` suite does.
 

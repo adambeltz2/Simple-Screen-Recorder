@@ -76,9 +76,11 @@ window.addEventListener('beforeunload', (e) => { if (hasUnsavedWork()) { e.preve
 // ===========================================================================
 
 if (!canRecord()) {
-  $('btnRecord').title = $('emptyRecord').title = 'Screen capture is not available in this browser';
-  $('btnRecord').style.opacity = $('emptyRecord').style.opacity = '.55';
-  $('emptyHint').textContent = "Screen capture isn't available on this device, so record with your phone's built-in screen recorder and open the video here. You can also drop a file anywhere on this page.";
+  // Android browsers can't capture the screen. Hide the dead buttons so Open is the obvious action.
+  $('btnRecord').hidden = true;
+  $('emptyRecord').hidden = true;
+  $('emptyOpen').classList.add('primary');
+  $('emptyHint').textContent = "This device can't capture its screen from a web page. Record with your phone's built-in screen recorder, then open the video here. You can also drop a file anywhere on this page.";
 }
 
 { const v = $('ver'); if (v) { v.textContent = 'v' + VERSION; v.title = 'Built ' + BUILT; } }

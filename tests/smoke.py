@@ -364,6 +364,17 @@ window.AudioContext = class { constructor() { this.currentTime = 0; this.destina
 """
 
 
+async def t_nocapture(b, url, tmp):
+    ctx, pg, errs = await new_page(b, url, mode='simple')
+    await pg.add_init_script("try { Object.defineProperty(navigator.mediaDevices, 'getDisplayMedia', { value: undefined, configurable: true }); } catch (e) {}")
+    await pg.reload()
+    check('no screen capture: Record buttons are hidden', not await pg.is_visible('#btnRecord') and not await pg.is_visible('#emptyRecord'))
+    check('no screen capture: Open is the primary action', await pg.evaluate('document.getElementById("emptyOpen").classList.contains("primary")') and await pg.is_visible('#emptyOpen'))
+    check('no screen capture: the hint says what to do', 'built-in screen recorder' in await pg.inner_text('#emptyHint'))
+    check('no console errors', not errs, errs[:3])
+    await ctx.close()
+
+
 async def t_countdown(b, url, tmp):
     ctx, pg, errs = await new_page(b, url)
     await pg.add_init_script(FAKE_SCREEN)
@@ -818,7 +829,7 @@ async def t_mode(b, url, tmp):
     await ctx.close()
 
 
-TESTS = {'core': t_core, 'export': t_export, 'persist': t_persist, 'edit': t_edit, 'addclip': t_addclip, 'record': t_record, 'export2': t_export2, 'phone': t_phone, 'assets': t_assets, 'offline': t_offline, 'theme': t_theme, 'mode': t_mode, 'countdown': t_countdown}
+TESTS = {'core': t_core, 'export': t_export, 'persist': t_persist, 'edit': t_edit, 'addclip': t_addclip, 'record': t_record, 'export2': t_export2, 'phone': t_phone, 'assets': t_assets, 'offline': t_offline, 'theme': t_theme, 'mode': t_mode, 'countdown': t_countdown, 'nocapture': t_nocapture}
 
 
 async def main():
