@@ -197,12 +197,16 @@ export function hitCrop(c, px, py, k) {
 
 // ---- preview overlay ------------------------------------------------------
 
-/** Crop shading, crop handles and selection handles. Not part of exports. */
-export function drawOverlay(ctx, S, k) {
+/**
+ * Crop shading, crop handles and selection handles. Not part of exports.
+ * off = { x, y, cropped }: when the preview shows only the cropped region,
+ * (x,y) is that region's origin and the crop shading is skipped.
+ */
+export function drawOverlay(ctx, S, k, off = { x: 0, y: 0, cropped: false }) {
   ctx.save();
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.setTransform(1, 0, 0, 1, -off.x, -off.y);
   const W = S.W, H = S.H;
-  if (S.crop) {
+  if (S.crop && !off.cropped) {
     const c = S.crop;
     ctx.fillStyle = 'rgba(8,10,14,0.62)';
     ctx.fillRect(0, 0, W, c.y);

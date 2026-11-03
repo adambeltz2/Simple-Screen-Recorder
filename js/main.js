@@ -44,15 +44,20 @@ let lastFocus = 'stage'; // where the last click landed: decides what Delete rem
 const view = $('view');
 const vctx = view.getContext('2d');
 
+/** The part of the frame the preview shows: the crop once applied, the whole frame while editing the crop. */
+const isCropped = () => !!(S.crop && S.tool !== 'crop');
+const viewRect = () => (isCropped() ? S.crop : { x: 0, y: 0, w: S.W, h: S.H });
+
 function renderStage() {
   const f = S.frames[S.cur];
   view.classList.toggle('hidden', !f);
   $('empty').hidden = !!f;
   if (!f) return;
-  if (view.width !== S.W || view.height !== S.H) { view.width = S.W; view.height = S.H; }
-  drawScene(vctx, f, { sx: 0, sy: 0, sw: S.W, sh: S.H, dw: S.W, dh: S.H }, S.annos, S.bg);
-  const k = S.W / (view.getBoundingClientRect().width || S.W);
-  drawOverlay(vctx, S, k);
+  const c = viewRect();
+  if (view.width !== c.w || view.height !== c.h) { view.width = c.w; view.height = c.h; }
+  drawScene(vctx, f, { sx: c.x, sy: c.y, sw: c.w, sh: c.h, dw: c.w, dh: c.h }, S.annos, S.bg);
+  const k = c.w / (view.getBoundingClientRect().width || c.w);
+  drawOverlay(vctx, S, k, { x: c.x, y: c.y, cropped: isCropped() });
 }
 
 // ===========================================================================
@@ -249,9 +254,9 @@ function makeAnno(type, x1, y1, x2, y2) {
   };
 }
 
-const toSrc = (e) => {
-  const r = view.getBoundingClientRect();
-  return { x: ((e.clientX - r.left) * S.W) / r.width, y: ((e.clientY - r.top) * S.H) / r.height, k: S.W / r.width };
+const toSrc = (e) => { // pointer position in full-frame pixels (the preview may show only the crop)
+  const r = view.getBoundingClientRect(), c = viewRect();
+  return { x: c.x + ((e.clientX - r.left) * c.w) / r.width, y: c.y + ((e.clientY - r.top) * c.h) / r.height, k: c.w / r.width };
 };
 const curAnno = () => S.annos.find((a) => a.id === S.selAnno);
 
@@ -526,6 +531,11 @@ $('opDedupe').onclick = async () => {
   });
 });
 $('cropEdit').onclick = () => { if (S.frames.length) setTool('crop'); };
+$('cropApply').onclick = () => {
+  if (!S.crop) return toast('Draw a crop on the preview first (Crop tool)');
+  setTool('select');
+  toast(`Crop applied: ${S.crop.w}×${S.crop.h}. Reopen the Crop tool to adjust it.`);
+};
 $('cropReset').onclick = () => { if (S.crop) commit('crop-reset', (s) => { s.crop = null; }); };
 $('cropAspect').onchange = () => {
   const r = parseFloat($('cropAspect').value);
@@ -1120,6 +1130,7 @@ window.addEventListener('keydown', (e) => {
       else deleteSelection();
       break;
     }
+    case 'Enter': if (S.tool === 'crop' && S.crop) { e.preventDefault(); setTool('select'); } break;
     case 'Escape': if (S.selAnno != null) { S.selAnno = null; emit('view'); } else if (S.tool !== 'select') setTool('select'); break;
     case 'v': case 'V': setTool('select'); break;
   }

@@ -17,7 +17,7 @@ Record your screen (or open a video, GIF or animated WebP), edit it frame by fra
 - Trim before/after, keep or delete a selection, duplicate, reverse, ping-pong loop.
 - Speed up or slow down a range, set an exact frame delay, halve the frame rate (timing preserved).
 - Merge duplicate frames (identical / near-identical / similar).
-- Crop (drag on the preview, type numbers, or pick an aspect ratio) and resize.
+- Crop (drag on the preview, type numbers, or pick an aspect ratio), then **Apply crop** (or press Enter) to preview the result; **Edit crop** adjusts it. Plus resize.
 - Annotations that each appear on any range of frames: text, arrows, boxes, click-highlight spots, and pixelate-to-hide areas. Select, move and resize them on the preview.
 - Undo/redo for everything.
 

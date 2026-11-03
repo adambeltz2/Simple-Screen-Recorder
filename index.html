@@ -159,6 +159,7 @@
 
       <div class="group">
         <h3>Crop</h3>
+        <p class="hint">Pick the Crop tool and drag on the preview, then Apply (or press Enter). Exports use the crop either way.</p>
         <div class="grid4">
           <label>X<input id="cropX" type="number" min="0"></label>
           <label>Y<input id="cropY" type="number" min="0"></label>
@@ -166,7 +167,8 @@
           <label>H<input id="cropH" type="number" min="1"></label>
         </div>
         <div class="row wrap">
-          <button id="cropEdit" class="btn sm">Draw on preview</button>
+          <button id="cropEdit" class="btn sm">Edit crop</button>
+          <button id="cropApply" class="btn sm primary">Apply crop</button>
           <select id="cropAspect" aria-label="Aspect ratio">
             <option value="">Aspect…</option><option value="1">1:1</option><option value="1.7778">16:9</option>
             <option value="1.3333">4:3</option><option value="0.5625">9:16</option>
