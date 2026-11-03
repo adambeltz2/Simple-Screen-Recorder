@@ -20,6 +20,7 @@ The owner (Adam) wants hobby apps **phone-first, self-contained and offline**. K
 | `js/main.js` | Entry point only: imports every module, keyboard shortcuts, service worker registration, share-target intake |
 | `js/ui.js` | `$`, `$$`, `clamp`, formatters, `toast`, `touchScale()`, theme toggle (`initTheme`), and the small `ui` flag object |
 | `js/version.js` | `VERSION` / `BUILT`, shown in the footer (`#ver`). Bump on each release |
+| `js/mode.js` | Simple / Advanced mode: header switch, Simple edit steps, Simple export (format + goal presets) |
 | `js/state.js` | The single mutable project object `S`, change events, undo/redo |
 | `js/stage.js` | Preview canvas: drawing, crop/select/annotation pointer tools |
 | `js/timeline.js` | Virtualised thumbnail strip, zoom, tap/double-tap |
@@ -59,6 +60,8 @@ The owner (Adam) wants hobby apps **phone-first, self-contained and offline**. K
 
 - **Theme:** auto / light / dark, cycled by `#btnTheme`, stored in localStorage `ssr.theme.v1`. An inline script in `<head>` applies it before first paint. Never hard-code colours in CSS or canvas chrome; add a variable and define it for both themes. Icons: `favicon.ico` (16/32/48), `icons/icon-32.png`, `icons/apple-touch-icon.png` (180), plus the SVG and PWA icons; all are in `sw.js` `ASSETS`.
 
+- **Simple / Advanced** (`js/mode.js`): `data-mode` and `data-sview` on `<html>` (set pre-paint by an inline script, stored in localStorage `ssr.mode.v1`; Simple is the default) drive everything through CSS. Simple hides `.tabs`, `#tools` and the Advanced panes. Its goals (`GOALS`, `presetSettings`) have no pipeline of their own: they write into the Advanced Export fields and call `runRender`, so Advanced always shows what was used. Shared DOM (`#annoProps`, `#progress`, `#results`) is *moved* into the Simple panes and back, never duplicated, because other code finds them by id. Anything that is Advanced-only inside shared markup gets the class `adv-only`.
+
 ## Gotchas learned the hard way
 
 - **gifenc patch:** upstream `writeFrame` can't place a frame at an offset. `lib/gifenc/index.js` has `left`/`top` options added. If gifenc is ever re-vendored, re-apply that patch or the changed-region GIF optimisation silently breaks. Also: gifenc's `delay` option is in **ms** (it divides by 10 itself), and per-frame palettes are only written when you pass `palette` on non-first frames.
@@ -77,7 +80,7 @@ python3 tests/smoke.py --only core,persist
 SHOTS_DIR=/tmp/shots python3 tests/smoke.py --only phone   # keep phone screenshots
 ```
 
-It serves the repo itself and drives real Chrome (`/usr/bin/google-chrome`, `--no-sandbox`) with Playwright. Needs `ffmpeg`/`ffprobe` and Pillow. Suites: `core`, `export`, `export2` (size limit, fades, cancel), `persist`, `edit`, `addclip`, `record`, `phone` (Pixel 7 touch emulation: overflow, tap-target size, 16px inputs, sticky preview, finger drags), `assets` (every imported module is in `sw.js` `ASSETS`; every named import exists), `offline` (real service worker, network cut), `theme` (toggle, persistence, contrast, icons).
+It serves the repo itself and drives real Chrome (`/usr/bin/google-chrome`, `--no-sandbox`) with Playwright. Needs `ffmpeg`/`ffprobe` and Pillow. Suites: `core`, `export`, `export2` (size limit, fades, cancel), `persist`, `edit`, `addclip`, `record`, `phone` (Pixel 7 touch emulation: overflow, tap-target size, 16px inputs, sticky preview, finger drags), `assets` (every imported module is in `sw.js` `ASSETS`; every named import exists), `offline` (real service worker, network cut), `theme` (toggle, persistence, contrast, icons), `mode` (Simple steps, presets, hand-off to Advanced, phone). Most suites start in Advanced; pass `mode='simple'` to `new_page` for the default.
 
 Run the full suite before pushing anything that touches more than one module. `eslint` with `no-undef` is a good extra check for missing imports, but it can't see a *missing export*; the `assets` suite does.
 

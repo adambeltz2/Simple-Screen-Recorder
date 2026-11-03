@@ -49,7 +49,10 @@ class Ctx:
 
 
 async def new_page(b, url, **kw):
+    mode = kw.pop('mode', 'advanced')  # most suites drive the full editor
     ctx = await b.new_context(viewport=kw.pop('viewport', {'width': 1360, 'height': 860}), **kw)
+    if mode == 'advanced':
+        await ctx.add_init_script("try { if (!localStorage.getItem('ssr.mode.v1')) localStorage.setItem('ssr.mode.v1', 'advanced'); } catch (e) {}")
     pg = await ctx.new_page()
     errs = []
     pg.on('console', lambda m: errs.append(m.text) if m.type == 'error' else None)
@@ -548,7 +551,7 @@ async def t_phone(b, url, tmp):
     await pg.click('[data-tab=export]')
     await shot(pg, 'phone-6-export')
     hh = await pg.evaluate('document.querySelector(".top").getBoundingClientRect().height')
-    check('header fits on one row', hh < 66, hh)
+    check('header is at most two tidy rows', hh < 140, hh)
     check('no console errors', not errs, errs[:3])
     await ctx.close()
 
@@ -676,7 +679,93 @@ async def t_theme(b, url, tmp):
     await ctx.close()
 
 
-TESTS = {'core': t_core, 'export': t_export, 'persist': t_persist, 'edit': t_edit, 'addclip': t_addclip, 'record': t_record, 'export2': t_export2, 'phone': t_phone, 'assets': t_assets, 'offline': t_offline, 'theme': t_theme}
+async def t_mode(b, url, tmp):
+    ctx, pg, errs = await new_page(b, url, mode='simple')
+    attr = lambda a: pg.evaluate(f'document.documentElement.getAttribute("{a}")')
+    vis = lambda sel: pg.is_visible(sel)
+    check('fresh visit starts in Simple', await attr('data-mode') == 'simple')
+    check('simple hides the tabs, tool bar and header Export', not await vis('.tabs') and not await vis('#tools') and not await vis('#btnExportTop'))
+    check('simple shows the steps panel', await vis('#pane-simple') and not await vis('#pane-sexport'))
+    await import_video(pg, make_video(tmp, secs=2), fps='5', width=640)
+    n = await pg.evaluate('__app.S.frames.length')
+
+    # trim
+    await pg.evaluate('__app.S.sel = {a: 0, b: 3}; __app.touch()')
+    await pg.click('#sKeep')
+    check('Trim: Keep selection works', await pg.evaluate('__app.S.frames.length') == 4)
+    await pg.click('#btnUndo')
+    check('Trim: undo restores', await pg.evaluate('__app.S.frames.length') == n)
+
+    # crop
+    await pg.click('#sShapes [data-ratio="1"]')
+    c = await pg.evaluate('__app.S.crop')
+    check('Crop: 1:1 chip sets a square crop and opens the crop tool', c and c['w'] == c['h'] and await pg.evaluate('__app.S.tool') == 'crop', c)
+    check('Crop: floating Apply bar is shown', await vis('#cropBar'))
+    await pg.click('#cropBarApply')
+    check('Crop: Apply returns to the select tool', await pg.evaluate('__app.S.tool') == 'select')
+
+    # note
+    await pg.click('[data-note=text]')
+    r = await pg.evaluate('(()=>{const r=document.getElementById("view").getBoundingClientRect();return [r.x,r.y,r.width,r.height]})()')
+    await pg.mouse.click(r[0] + r[2] / 2, r[1] + r[3] / 2)
+    check('Note: text annotation was added', await pg.evaluate('__app.S.annos.length') == 1)
+    check('Note: its editor shows inside the Simple panel', await vis('#simpleNote #pText'))
+    check('Note: advanced-only fields are hidden', not await vis('#simpleNote #pFin'))
+
+    # export screen
+    await pg.click('#sGoExport')
+    check('Export screen replaces the steps', await vis('#pane-sexport') and not await vis('#pane-simple'))
+    await pg.click('#sFormat [data-fmt=webp]'); await pg.click('#sGoals [data-goal=best]')
+    spec = await pg.inner_text('#sSpec')
+    check('Spec line follows format + goal', 'WEBP' in spec and 'lossless' in spec, spec)
+    await pg.click('#sFormat [data-fmt=gif]'); await pg.click('#sGoals [data-goal=tiny]')
+    check('Tiny goal states its limit', 'under 1 MB' in await pg.inner_text('#sAim'))
+    check('Render button names the format', (await pg.inner_text('#sRender')) == 'Render GIF')
+    await pg.click('#sRender')
+    await pg.wait_for_selector('#sHost #results a[download$=".gif"]', timeout=60000)
+    check('Result appears inside the Simple screen', True)
+    size = len(await blob_of(pg, '#sHost #results a[download$=".gif"]'))
+    check('Tiny GIF is under 1 MB', size < 1.0e6, size)
+    check('Goal wrote into the Advanced fields', await pg.input_value('#expTarget') == '1' and int(await pg.input_value('#expW')) <= 480)
+
+    # hand-off to Advanced
+    await pg.click('#sAdv')
+    check('See every setting opens Advanced on the Export tab', await attr('data-mode') == 'advanced' and await vis('#pane-export') and await vis('.tabs'))
+    check('Advanced notes where it started', 'Tiny' in await pg.inner_text('#presetNote'))
+    check('Results moved back to the Export tab', await pg.evaluate('document.getElementById("pane-export").contains(document.getElementById("results"))'))
+    await pg.select_option('#expFps', '8')
+    check('Editing a setting is noted', 'changed' in await pg.inner_text('#presetNote'))
+    await pg.reload()
+    check('Mode survives a reload', await attr('data-mode') == 'advanced')
+    await pg.click('#modeSimple')
+    check('Switching back shows Simple again', await attr('data-mode') == 'simple' and await vis('#pane-simple'))
+    check('no console errors', not errs, errs[:3])
+    await ctx.close()
+
+    # presets are pure: check the numbers
+    ctx, pg, errs = await new_page(b, url)
+    out = await pg.evaluate("""async () => { const m = await import('./js/mode.js');
+      return { chat: m.presetSettings('gif','chat',1280), best: m.presetSettings('webp','best',1280), tiny: m.presetSettings('gif','tiny',1280), small: m.presetSettings('gif','chat',300) }; }""")
+    check('Chat: 10 MB target, capped at 640 wide', out['chat']['target'] == 10 and out['chat']['width'] == 640, out['chat'])
+    check('Best: no limit, full width, lossless WebP', out['best']['target'] == 0 and out['best']['width'] == 1280 and out['best']['lossless'], out['best'])
+    check('Tiny: 1 MB target, 480 wide', out['tiny']['target'] == 1 and out['tiny']['width'] == 480, out['tiny'])
+    check('Never upscales a small source', out['small']['width'] == 300, out['small'])
+    check('no console errors (presets)', not errs, errs[:3])
+    await ctx.close()
+
+    # phone, Simple mode
+    ctx, pg, errs = await new_page(b, url, mode='simple', **DEVICES['Pixel 7'])
+    await import_video(pg, make_video(tmp, secs=1), fps='5', width=480)
+    over = await pg.evaluate('document.documentElement.scrollWidth - window.innerWidth')
+    check('phone Simple: no horizontal overflow', over <= 0, over)
+    small = await pg.evaluate("""[...document.querySelectorAll('#pane-simple .btn, #modeSwitch button')].filter(e => e.offsetParent).map(e => [e.textContent.trim(), e.getBoundingClientRect().height]).filter(x => x[1] < 38)""")
+    check('phone Simple: tap targets are at least 38px', not small, small)
+    await shot(pg, 'mode-phone')
+    check('no console errors (phone)', not errs, errs[:3])
+    await ctx.close()
+
+
+TESTS = {'core': t_core, 'export': t_export, 'persist': t_persist, 'edit': t_edit, 'addclip': t_addclip, 'record': t_record, 'export2': t_export2, 'phone': t_phone, 'assets': t_assets, 'offline': t_offline, 'theme': t_theme, 'mode': t_mode}
 
 
 async def main():

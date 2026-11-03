@@ -122,13 +122,13 @@ let exportAbort = null;
 /** Target size in bytes, with a little headroom so "under 10 MB" really is. */
 const targetBytes = () => Math.round((+$('expTarget').value || 0) * 1e6 * 0.95);
 
-async function runRender(format) {
+export async function runRender(format) {
   if (!S.frames.length || exportAbort) return;
   if (format === 'webp' && !webpOK) return toast("This browser can't encode WebP.", true);
   stopPlayback();
   exportAbort = new AbortController();
   const label = format.toUpperCase();
-  const buttons = ['btnRenderGif', 'btnRenderWebp'].map($);
+  const buttons = ['btnRenderGif', 'btnRenderWebp', 'sRender'].map($);
   buttons.forEach((b) => { b.disabled = true; });
   $('progress').hidden = false;
   $('progBar').style.width = '0';
@@ -165,6 +165,7 @@ async function runRender(format) {
     $('progress').hidden = true;
     $('btnRenderGif').disabled = false;
     $('btnRenderWebp').disabled = !webpOK;
+    $('sRender').disabled = false;
   }
 }
 $('btnRenderGif').onclick = () => runRender('gif');

@@ -66,11 +66,11 @@ function buildAnnoProps() {
         ${t !== 'text' ? '<label>Line width <input type="number" id="pWidth" min="1" max="60"></label>' : '<span></span>'}</div>` : ''}
       ${t === 'rect' || t === 'ring' ? `<label class="check"><input type="checkbox" id="pFill"> ${t === 'rect' ? 'Tinted fill' : 'Soft fill'}</label>` : ''}
       ${t === 'blur' ? '<label>Block size <input type="range" id="pBlock" min="4" max="60"></label>' : ''}
-      <div class="two"><label title="Fade in over this many milliseconds">Fade in (ms) <input type="number" id="pFin" min="0" max="10000" step="100"></label>
+      <div class="two adv-only"><label title="Fade in over this many milliseconds">Fade in (ms) <input type="number" id="pFin" min="0" max="10000" step="100"></label>
         <label title="Fade out over this many milliseconds">Fade out (ms) <input type="number" id="pFout" min="0" max="10000" step="100"></label></div>
-      <label>Shown on frames</label>
-      <div class="two"><label>From <input type="number" id="pFrom" min="1"></label><label>To <input type="number" id="pTo" min="1"></label></div>
-      <div class="quick">
+      <label class="adv-only">Shown on frames</label>
+      <div class="two adv-only"><label>From <input type="number" id="pFrom" min="1"></label><label>To <input type="number" id="pTo" min="1"></label></div>
+      <div class="quick adv-only">
         <button class="btn sm" data-range="all">Whole animation</button>
         <button class="btn sm" data-range="here">From here on</button>
         <button class="btn sm" data-range="sel">Selected frames</button>

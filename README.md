@@ -46,6 +46,8 @@ To run it locally: `python3 -m http.server 8000` in this folder, then open `http
 
 ## Using it on a phone
 
+**Simple and Advanced:** the switch in the header changes how much you see. Simple is three steps (Trim, Crop, Add a note) then an Export screen where you pick a format (GIF or WebP) and what it is for (Chat or email, Web page or docs, Best quality, Tiny). Advanced is the full editor. Simple's choices fill in the same settings Advanced shows, so you can switch over and fine-tune. The choice is remembered.
+
 The header's contrast button switches between automatic (follows your device), light and dark; your choice is remembered.
 
 Install it from the browser menu ("Add to Home screen" / "Install app"); it then works offline. Android browsers can't capture the screen from a web page, so record with your phone's own screen recorder and open that video here. Once installed, you can also use **Share → Simple Screen Recorder** from your gallery or files app to send a video straight in.

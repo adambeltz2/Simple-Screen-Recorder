@@ -14,6 +14,7 @@
   --accent-hi: #ffb653;
   --accent-text: #ffa733; /* amber used as text/underline on the panel */
   --accent-ink: #1b1204;  /* text on an amber button */
+  --accent-soft: rgba(255,167,51,.14);
   --blue: #5ec8ff;
   --danger: #ff6b6b;
   --rec: #ff7a70;
@@ -304,3 +305,75 @@ dialog form { margin: 0; }
 
 /* Theme toggle in the header */
 #btnTheme .ic { fill: none; }
+
+/* ---- Simple / Advanced mode ---- */
+.seg { display: flex; gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: 999px; background: var(--inset); flex: none; }
+.seg button { height: 28px; padding: 0 14px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font: inherit; font-weight: 600; cursor: pointer; }
+.seg button:hover { color: var(--text); }
+.seg button[aria-pressed=true] { background: var(--accent); color: var(--accent-ink); }
+.seg.wide { display: flex; }
+.seg.wide button { flex: 1; height: 34px; }
+.seg button[hidden] { display: none; }
+
+:root[data-mode=simple] .tabs, :root[data-mode=simple] #tools, :root[data-mode=simple] #btnExportTop,
+:root[data-mode=simple] #pane-edit, :root[data-mode=simple] #pane-annotate, :root[data-mode=simple] #pane-export,
+:root[data-mode=simple] .adv-only { display: none !important; }
+:root[data-mode=advanced] #pane-simple, :root[data-mode=advanced] #pane-sexport { display: none !important; }
+:root[data-sview=export] #pane-simple, :root[data-sview=edit] #pane-sexport { display: none; }
+
+.steps { list-style: none; margin: 0; padding: 4px 0 0; display: flex; flex-direction: column; }
+.step { display: flex; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.step:last-child { border-bottom: 0; }
+.step .num { flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: var(--accent-ink); font-weight: 700; font-size: 13px; }
+.step .num.off { background: var(--raise); color: var(--muted); }
+.step .sbody { flex: 1; min-width: 0; }
+.step h3 { text-transform: none; letter-spacing: 0; font-size: 15px; color: var(--text); margin-bottom: 4px; justify-content: flex-start; gap: 8px; }
+.step .opt { font-size: 12px; font-weight: 500; color: var(--muted); }
+.step .hint { margin-top: 0; }
+.chip { border-radius: 999px; }
+.chip.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-text); }
+#simpleNote:not(:empty) { margin-top: 10px; }
+#simpleNote .group { padding: 0; border: 0; }
+.simple-foot { position: sticky; bottom: 0; background: var(--panel); padding: 12px 0 14px; margin-top: 8px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
+.simple-foot .btn.big { width: 100%; }
+.simple-foot .hint { margin: 0; }
+.hint.center { text-align: center; }
+.row.between { justify-content: space-between; align-items: center; margin: 0; }
+.linkbtn { background: none; border: 0; color: var(--accent-text); font: inherit; font-weight: 600; font-size: 12px; cursor: pointer; padding: 6px 0; white-space: nowrap; }
+.sh { margin: 12px 0 8px; }
+#sHost:not(:empty) { margin-top: 10px; }
+.goals { display: flex; flex-direction: column; gap: 8px; }
+.goal { display: flex; align-items: center; gap: 12px; text-align: left; padding: 8px 14px; min-height: 52px; border: 1px solid var(--line); border-radius: 12px; background: var(--raise); color: var(--text); font: inherit; cursor: pointer; }
+.goal:hover { background: var(--hover); }
+.goal .gt { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.goal .gt b { font-size: 15px; }
+.goal .gt small { font-size: 13px; color: var(--muted); }
+.goal .gb { font: 600 11px var(--mono); padding: 4px 8px; border-radius: 6px; background: var(--line); color: var(--text); white-space: nowrap; }
+.goal[aria-pressed=true] { border: 2px solid var(--accent); padding: 7px 13px; background: var(--accent-soft); }
+.goal[aria-pressed=true] .gb { background: var(--accent); color: var(--accent-ink); }
+.specbox { margin-top: 10px; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--inset); display: flex; flex-direction: column; gap: 6px; }
+.specbox .mono { font-size: 12px; color: var(--muted); }
+.specbox #sAim { font-weight: 650; }
+
+/* Narrow phones: two header rows (title, mode, theme / then the actions) instead of a cramped single row. */
+@media (max-width: 560px) {
+  .top { flex-wrap: wrap; row-gap: 6px; }
+  .top-actions { display: contents; }
+  .brand { order: 0; }
+  #modeSwitch { order: 1; margin-left: auto; }
+  #btnTheme { order: 2; }
+  .top-actions .sep { display: block; order: 3; flex-basis: 100%; height: 0; }
+  #btnRecord { order: 4; }
+  #btnOpen { order: 5; }
+  #btnUndo { order: 6; }
+  #btnRedo { order: 7; }
+  #btnNew { order: 8; }
+  #btnExportTop { order: 9; }
+}
+
+@media (pointer: coarse) {
+  .seg button { height: 40px; }
+  .seg.wide button { height: 44px; }
+  .goal { min-height: 60px; }
+  .linkbtn { padding: 12px 0; }
+}

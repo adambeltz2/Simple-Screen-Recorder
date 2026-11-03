@@ -19,6 +19,11 @@
       var t = localStorage.getItem('ssr.theme.v1');
       if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
     } catch (e) { /* storage unavailable: follow the system */ }
+    /* Same for Simple / Advanced mode (Simple is the default). */
+    var m = 'simple';
+    try { if (localStorage.getItem('ssr.mode.v1') === 'advanced') m = 'advanced'; } catch (e) { /* default */ }
+    document.documentElement.setAttribute('data-mode', m);
+    document.documentElement.setAttribute('data-sview', 'edit');
   </script>
   <link rel="stylesheet" href="style.css">
 </head>
@@ -53,6 +58,10 @@
     <span>Simple Screen Recorder</span>
   </div>
   <div class="top-actions">
+    <div class="seg" id="modeSwitch" role="group" aria-label="Mode">
+      <button id="modeSimple" aria-pressed="true">Simple</button>
+      <button id="modeAdvanced" aria-pressed="false">Advanced</button>
+    </div>
     <button id="btnRecord" class="btn rec"><svg class="ic"><use href="#i-rec"/></svg><span>Record</span></button>
     <button id="btnOpen" class="btn"><svg class="ic"><use href="#i-open"/></svg><span>Open</span></button>
     <button id="btnTheme" class="btn icon" aria-label="Colour theme: automatic" title="Colour theme: automatic (click to change)"><svg class="ic"><use href="#i-theme"/></svg></button>
@@ -118,6 +127,69 @@
       <button data-tab="annotate" role="tab">Annotate</button>
       <button data-tab="export" role="tab">Export</button>
     </nav>
+
+    <!-- SIMPLE: edit -->
+    <div class="pane" id="pane-simple">
+      <ol class="steps">
+        <li class="step">
+          <span class="num">1</span>
+          <div class="sbody">
+            <h3>Trim</h3>
+            <p class="hint">Drag across the timeline to choose the part you want.</p>
+            <div class="row wrap"><button id="sKeep" class="btn sm">Keep selection</button><button id="sDel" class="btn sm danger">Delete selection</button></div>
+            <div id="sSel" class="mono muted"></div>
+          </div>
+        </li>
+        <li class="step">
+          <span class="num">2</span>
+          <div class="sbody">
+            <h3>Crop</h3>
+            <p class="hint">Pick a shape, then drag on the preview and press Apply.</p>
+            <div class="row wrap" id="sShapes">
+              <button class="btn sm chip" data-ratio="0">Free</button>
+              <button class="btn sm chip" data-ratio="1">1:1</button>
+              <button class="btn sm chip" data-ratio="1.7778">16:9</button>
+              <button class="btn sm chip" data-ratio="0.5625">9:16</button>
+            </div>
+          </div>
+        </li>
+        <li class="step">
+          <span class="num off">3</span>
+          <div class="sbody">
+            <h3>Add a note <span class="opt">optional</span></h3>
+            <div class="row wrap">
+              <button class="btn sm" data-note="text">Text</button>
+              <button class="btn sm" data-note="arrow">Arrow</button>
+              <button class="btn sm" data-note="rect">Box</button>
+            </div>
+            <div id="simpleNote"></div>
+          </div>
+        </li>
+      </ol>
+      <div class="simple-foot">
+        <button id="sGoExport" class="btn primary big">Export →</button>
+        <p class="hint center">Speed, fades, layers and more are in Advanced.</p>
+      </div>
+    </div>
+
+    <!-- SIMPLE: export -->
+    <div class="pane" id="pane-sexport">
+      <div class="row"><button id="sBack" class="btn sm">← Back to editing</button></div>
+      <h3 class="sh">Format</h3>
+      <div class="seg wide" id="sFormat" role="group" aria-label="Format">
+        <button data-fmt="gif" aria-pressed="true">GIF</button>
+        <button data-fmt="webp" aria-pressed="false">WebP</button>
+      </div>
+      <p class="hint" id="sFmtHint">GIF plays everywhere. WebP is smaller and sharper.</p>
+      <h3 class="sh">Make it for…</h3>
+      <div class="goals" id="sGoals"></div>
+      <div class="specbox"><div class="mono" id="sSpec"></div><div id="sAim"></div></div>
+      <div id="sHost"></div>
+      <div class="simple-foot">
+        <button id="sRender" class="btn primary big">Render GIF</button>
+        <div class="row between"><span class="hint" id="sNote"></span><button id="sAdv" class="linkbtn">See every setting →</button></div>
+      </div>
+    </div>
 
     <!-- EDIT -->
     <div class="pane" id="pane-edit">
@@ -239,6 +311,7 @@
 
     <!-- EXPORT -->
     <div class="pane" id="pane-export" hidden>
+      <p class="hint" id="presetNote" hidden></p>
       <div class="group">
         <div id="expSummary" class="summary mono"></div>
         <div class="row">

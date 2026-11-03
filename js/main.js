@@ -5,6 +5,7 @@ import { S, emit, setCur, commit, undo, redo, touch } from './state.js';
 import { canRecord } from './ingest.js';
 import { $, ui, initTheme } from './ui.js';
 import { VERSION, BUILT } from './version.js';
+import './mode.js';
 import './timeline.js';
 import './annopanel.js';
 import './editpanel.js';
