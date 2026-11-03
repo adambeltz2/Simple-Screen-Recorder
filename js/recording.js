@@ -59,6 +59,28 @@ function closePip() {
 // in four places: a full-page flash here, the tab title, the floating window (if open), and
 // the status bar.
 
+// Beeps: they keep playing when this tab is hidden, which the flash cannot. The audio context
+// must be created or resumed inside the click that starts recording, or browsers keep it muted.
+let audio = null;
+function prepAudio() {
+  if (!$('recBeep').checked) return;
+  try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); audio.resume(); } catch { audio = null; }
+}
+function beep(freq, secs) {
+  if (!audio || !$('recBeep').checked) return;
+  try {
+    const t = audio.currentTime;
+    const osc = audio.createOscillator(), gain = audio.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.linearRampToValueAtTime(0.25, t + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + secs);
+    osc.connect(gain); gain.connect(audio.destination);
+    osc.start(t); osc.stop(t + secs + 0.02);
+  } catch { /* sound is a nicety */ }
+}
+
 const BASE_TITLE = document.title;
 const cd = $('cdOverlay');
 let cdTimer = 0;
@@ -73,6 +95,7 @@ function cdTick(n) {
   retrigger(cd, 'tick');
   retrigger($('cdNum'), 'pop');
   document.title = `${n}… ${BASE_TITLE}`;
+  beep(660, 0.14);
   if (pip) { pip.time.textContent = `Starting in ${n}…`; pip.flash('#ffa733'); }
 }
 
@@ -84,6 +107,7 @@ function cdGo() {
   $('cdNum').textContent = '●';
   retrigger(cd, 'go');
   document.title = `● REC ${BASE_TITLE}`;
+  beep(1100, 0.4);
   if (pip) pip.flash('#ff4d42');
   cdTimer = setTimeout(() => { cd.hidden = true; }, 900);
 }
@@ -154,6 +178,7 @@ $('recStart').addEventListener('click', (e) => {
 
 async function startRecording() {
   stopPlayback();
+  prepAudio();
   const pipReady = openPip(); // must happen now, while the click still counts as a user gesture
   const r = new Recorder(
     { fps: +$('recFps').value, maxW: +$('recW').value, delay: +$('recDelay').value, skipIdentical: $('recSkip').checked },

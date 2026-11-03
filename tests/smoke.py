@@ -355,9 +355,19 @@ async def start_recording(pg, fps='10', width='480', pip=False):
     await pg.wait_for_function('document.getElementById("recMsg").textContent === "Recording"', timeout=10000)
 
 
+FAKE_AUDIO = """
+window.__beeps = [];
+window.AudioContext = class { constructor() { this.currentTime = 0; this.destination = {}; }
+  resume() { return Promise.resolve(); }
+  createGain() { return { gain: { setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {} }, connect() {} }; }
+  createOscillator() { const o = { frequency: { value: 0 }, connect() {}, stop() {}, start() { window.__beeps.push(o.frequency.value); } }; return o; } };
+"""
+
+
 async def t_countdown(b, url, tmp):
     ctx, pg, errs = await new_page(b, url)
     await pg.add_init_script(FAKE_SCREEN)
+    await pg.add_init_script(FAKE_AUDIO)
     await pg.reload()
     base = await pg.title()
     await pg.click('#btnRecord'); await pg.wait_for_selector('#recDlg[open]')
@@ -374,21 +384,25 @@ async def t_countdown(b, url, tmp):
     check('countdown number is big', await pg.evaluate('parseFloat(getComputedStyle(document.getElementById("cdNum")).fontSize)') >= 150)
     await pg.wait_for_function('document.getElementById("recMsg").textContent === "Recording"', timeout=10000)
     check('tab title shows REC while recording', (await pg.title()).startswith('●'), await pg.title())
+    beeps = await pg.evaluate('window.__beeps')
+    check('three ticks then a higher start tone', len(beeps) == 4 and beeps[:3] == [660] * 3 and beeps[3] > 660, beeps)
     await pg.wait_for_function('document.getElementById("cdOverlay").hidden', timeout=4000)
     check('overlay clears itself after the start flash', True)
     await pg.click('#recStop')
     await pg.wait_for_function('!document.getElementById("recbar") || document.getElementById("recbar").hidden', timeout=15000)
     check('tab title is restored afterwards', await pg.title() == base, await pg.title())
     # cancelling during the countdown
-    await pg.evaluate('__app.S.frames = []')
+    await pg.evaluate('__app.S.frames = []; window.__beeps.length = 0')
     await pg.click('#btnRecord'); await pg.wait_for_selector('#recDlg[open]')
     await pg.select_option('#recDelay', '5')
+    await pg.uncheck('#recBeep')
     if await pg.evaluate('!document.getElementById("recPipRow").hidden'):
         await pg.uncheck('#recPip')
     await pg.click('#recStart')
     await pg.wait_for_selector('#cdOverlay:not([hidden])', timeout=10000)
     await pg.click('#cdCancel')
     await pg.wait_for_function('document.getElementById("cdOverlay").hidden', timeout=4000)
+    check('Beep checkbox silences the countdown', await pg.evaluate('window.__beeps.length') == 0)
     check('Cancel during the countdown stops it', await pg.title() == base and await pg.evaluate('document.getElementById("recbar").hidden'))
     check('no console errors', not errs, errs[:3])
     await ctx.close()
