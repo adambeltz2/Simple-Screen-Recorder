@@ -240,6 +240,22 @@
     <!-- EXPORT -->
     <div class="pane" id="pane-export" hidden>
       <div class="group">
+        <div id="expSummary" class="summary mono"></div>
+        <div class="row">
+          <button id="btnRenderGif" class="btn primary grow">Render GIF</button>
+          <button id="btnRenderWebp" class="btn primary grow">Render WebP</button>
+        </div>
+        <div class="row" id="vidRow" hidden>
+          <button id="btnRenderVideo" class="btn primary grow">Render video</button>
+        </div>
+        <div id="progress" hidden>
+          <div class="bar"><i id="progBar"></i></div>
+          <div class="row"><span id="progText" class="mono muted grow"></span><button id="btnCancel" class="btn sm">Cancel</button></div>
+        </div>
+        <div id="results"></div>
+  
+
+      <div class="group">
         <h3>Size</h3>
         <div class="row">
           <label class="grow">Width
@@ -333,22 +349,7 @@
         </div>
         <p class="hint">Video can't loop by itself; most chat apps and sites loop short clips for you. No sound is recorded.</p>
       </div>
-
-      <div class="group">
-        <div id="expSummary" class="summary mono"></div>
-        <div class="row">
-          <button id="btnRenderGif" class="btn primary grow">Render GIF</button>
-          <button id="btnRenderWebp" class="btn primary grow">Render WebP</button>
-        </div>
-        <div class="row" id="vidRow" hidden>
-          <button id="btnRenderVideo" class="btn primary grow">Render video</button>
-        </div>
-        <div id="progress" hidden>
-          <div class="bar"><i id="progBar"></i></div>
-          <div class="row"><span id="progText" class="mono muted grow"></span><button id="btnCancel" class="btn sm">Cancel</button></div>
-        </div>
-        <div id="results"></div>
-      </div>
+    </div>
     </div>
   </aside>
 </main>
