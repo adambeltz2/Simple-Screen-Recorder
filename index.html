@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Simple Screen Recorder</title>
+  <meta name="description" content="Record your screen or import a video, edit it frame by frame, and export a GIF or animated WebP. Everything runs in your browser; nothing is uploaded.">
+  <meta name="theme-color" content="#0f1115">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-rec" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-open" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+    <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></symbol>
+    <symbol id="i-redo" viewBox="0 0 24 24"><path d="m15 14 5-5-5-5"/><path d="M20 9H10a6 6 0 0 0 0 12h3"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l12-7.5z" fill="currentColor"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><path d="M7 5h3v14H7zM14 5h3v14h-3z" fill="currentColor"/></symbol>
+    <symbol id="i-prev" viewBox="0 0 24 24"><path d="M6 5v14M19 5l-9 7 9 7z"/></symbol>
+    <symbol id="i-next" viewBox="0 0 24 24"><path d="M18 5v14M5 5l9 7-9 7z"/></symbol>
+    <symbol id="i-loop" viewBox="0 0 24 24"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a3 3 0 0 1 3-3h15"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a3 3 0 0 1-3 3H3"/></symbol>
+    <symbol id="i-select" viewBox="0 0 24 24"><path d="M5 3l14 7-6 2-2 6z"/></symbol>
+    <symbol id="i-crop" viewBox="0 0 24 24"><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/></symbol>
+    <symbol id="i-text" viewBox="0 0 24 24"><path d="M5 6V4h14v2M12 4v16M9 20h6"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 19 19 5M9 5h10v10"/></symbol>
+    <symbol id="i-rect" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="2"/></symbol>
+    <symbol id="i-ring" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2" fill="currentColor"/></symbol>
+    <symbol id="i-blur" viewBox="0 0 24 24"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></symbol>
+  </defs>
+</svg>
+
+<header class="top">
+  <div class="brand">
+    <svg viewBox="0 0 32 32" class="logo" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#ffa733"/><circle cx="16" cy="16" r="7" fill="#1b1204"/><circle cx="16" cy="16" r="3" fill="#ffa733"/></svg>
+    <span>Simple Screen Recorder</span>
+  </div>
+  <div class="top-actions">
+    <button id="btnRecord" class="btn rec"><svg class="ic"><use href="#i-rec"/></svg><span>Record</span></button>
+    <button id="btnOpen" class="btn"><svg class="ic"><use href="#i-open"/></svg><span>Open</span></button>
+    <span class="sep"></span>
+    <button id="btnUndo" class="btn icon" title="Undo (Ctrl+Z)" aria-label="Undo"><svg class="ic"><use href="#i-undo"/></svg></button>
+    <button id="btnRedo" class="btn icon" title="Redo (Ctrl+Shift+Z)" aria-label="Redo"><svg class="ic"><use href="#i-redo"/></svg></button>
+    <button id="btnNew" class="btn">New</button>
+    <button id="btnExportTop" class="btn primary">Export</button>
+  </div>
+</header>
+
+<main class="work">
+  <section class="stage-col">
+    <div class="tools" id="tools" role="toolbar" aria-label="Tools">
+      <button class="tool on" data-tool="select" title="Select / move (V)"><svg class="ic"><use href="#i-select"/></svg><span>Select</span></button>
+      <button class="tool" data-tool="crop" title="Crop"><svg class="ic"><use href="#i-crop"/></svg><span>Crop</span></button>
+      <span class="sep"></span>
+      <button class="tool" data-tool="text" title="Text"><svg class="ic"><use href="#i-text"/></svg><span>Text</span></button>
+      <button class="tool" data-tool="arrow" title="Arrow"><svg class="ic"><use href="#i-arrow"/></svg><span>Arrow</span></button>
+      <button class="tool" data-tool="rect" title="Box"><svg class="ic"><use href="#i-rect"/></svg><span>Box</span></button>
+      <button class="tool" data-tool="ring" title="Click highlight"><svg class="ic"><use href="#i-ring"/></svg><span>Spot</span></button>
+      <button class="tool" data-tool="blur" title="Pixelate / hide"><svg class="ic"><use href="#i-blur"/></svg><span>Hide</span></button>
+      <span class="sep"></span>
+      <label class="mini" title="Colour for new annotations"><input type="color" id="toolColor" value="#ff3b30" aria-label="Annotation colour"></label>
+      <label class="mini" title="Line width"><input type="range" id="toolWidth" min="2" max="16" value="5" aria-label="Line width"></label>
+    </div>
+
+    <div class="stage" id="stage">
+      <canvas id="view" width="16" height="9"></canvas>
+      <div class="empty" id="empty">
+        <h1>Make a GIF or WebP from your screen</h1>
+        <p>Record a window or tab, or open a video, then trim, crop, annotate and export. Everything stays on your device.</p>
+        <div class="empty-actions">
+          <button id="emptyRecord" class="btn rec big"><svg class="ic"><use href="#i-rec"/></svg><span>Record screen</span></button>
+          <button id="emptyOpen" class="btn big"><svg class="ic"><use href="#i-open"/></svg><span>Open video or GIF</span></button>
+        </div>
+        <p class="hint" id="emptyHint">You can also drop a file anywhere on this page.</p>
+      </div>
+    </div>
+
+    <div class="transport">
+      <button id="btnPrev" class="btn icon" aria-label="Previous frame" title="Previous frame (←)"><svg class="ic"><use href="#i-prev"/></svg></button>
+      <button id="btnPlay" class="btn icon big-play" aria-label="Play" title="Play / pause (Space)"><svg class="ic"><use href="#i-play"/></svg></button>
+      <button id="btnNext" class="btn icon" aria-label="Next frame" title="Next frame (→)"><svg class="ic"><use href="#i-next"/></svg></button>
+      <button id="btnLoop" class="btn icon on" aria-label="Loop playback" title="Loop preview"><svg class="ic"><use href="#i-loop"/></svg></button>
+      <input type="range" id="seek" min="0" max="0" value="0" aria-label="Seek">
+      <span id="timeLabel" class="mono">0:00.0 / 0:00.0</span>
+    </div>
+  </section>
+
+  <aside class="panel">
+    <nav class="tabs" role="tablist">
+      <button data-tab="edit" class="on" role="tab">Edit</button>
+      <button data-tab="annotate" role="tab">Annotate</button>
+      <button data-tab="export" role="tab">Export</button>
+    </nav>
+
+    <!-- EDIT -->
+    <div class="pane" id="pane-edit">
+      <div class="group">
+        <h3>Selection <span id="selInfo" class="mono muted"></span></h3>
+        <p class="hint">Click a frame, drag across frames or shift-click to select a range.</p>
+        <div class="row wrap">
+          <button id="opSetStart" class="btn sm">Start here</button>
+          <button id="opSetEnd" class="btn sm">End here</button>
+          <button id="opSelAll" class="btn sm">All</button>
+        </div>
+        <div class="row wrap">
+          <button id="opTrimBefore" class="btn sm">Trim before</button>
+          <button id="opTrimAfter" class="btn sm">Trim after</button>
+          <button id="opKeep" class="btn sm">Keep selection</button>
+        </div>
+        <div class="row wrap">
+          <button id="opDelete" class="btn sm danger">Delete selection</button>
+          <button id="opDup" class="btn sm">Duplicate</button>
+        </div>
+      </div>
+
+      <div class="group">
+        <h3>Timing</h3>
+        <div class="row">
+          <label class="grow">Apply to
+            <select id="scope"><option value="sel">Selection</option><option value="all">All frames</option></select>
+          </label>
+        </div>
+        <div class="row">
+          <label class="grow">Speed
+            <select id="speedSel">
+              <option value="0.25">0.25× (slower)</option><option value="0.5">0.5×</option><option value="0.75">0.75×</option>
+              <option value="1.5">1.5×</option><option value="2" selected>2× (faster)</option><option value="3">3×</option><option value="4">4×</option><option value="8">8×</option>
+            </select>
+          </label>
+          <button id="opSpeed" class="btn sm">Apply</button>
+        </div>
+        <div class="row">
+          <label class="grow">Frame delay
+            <span class="unit"><input id="delayMs" type="number" min="10" step="10" value="100"><i>ms</i></span>
+          </label>
+          <button id="opDelay" class="btn sm">Set</button>
+        </div>
+        <div class="row wrap">
+          <button id="opReverse" class="btn sm">Reverse</button>
+          <button id="opPing" class="btn sm" title="Plays forward then backward (whole animation)">Ping-pong</button>
+          <button id="opHalve" class="btn sm" title="Drop every other frame; time is preserved">Halve frames</button>
+        </div>
+        <div class="row">
+          <label class="grow">Merge duplicate frames
+            <select id="dupThr">
+              <option value="0">Identical only</option>
+              <option value="0.0005" selected>Near-identical</option>
+              <option value="0.005">Similar</option>
+            </select>
+          </label>
+          <button id="opDedupe" class="btn sm">Run</button>
+        </div>
+      </div>
+
+      <div class="group">
+        <h3>Crop</h3>
+        <div class="grid4">
+          <label>X<input id="cropX" type="number" min="0"></label>
+          <label>Y<input id="cropY" type="number" min="0"></label>
+          <label>W<input id="cropW" type="number" min="1"></label>
+          <label>H<input id="cropH" type="number" min="1"></label>
+        </div>
+        <div class="row wrap">
+          <button id="cropEdit" class="btn sm">Draw on preview</button>
+          <select id="cropAspect" aria-label="Aspect ratio">
+            <option value="">Aspect…</option><option value="1">1:1</option><option value="1.7778">16:9</option>
+            <option value="1.3333">4:3</option><option value="0.5625">9:16</option>
+          </select>
+          <button id="cropReset" class="btn sm">Reset</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ANNOTATE -->
+    <div class="pane" id="pane-annotate" hidden>
+      <div class="group">
+        <h3>Add</h3>
+        <div class="row wrap" id="addBtns">
+          <button class="btn sm" data-add="text">Text</button>
+          <button class="btn sm" data-add="arrow">Arrow</button>
+          <button class="btn sm" data-add="rect">Box</button>
+          <button class="btn sm" data-add="ring">Spot</button>
+          <button class="btn sm" data-add="blur">Hide</button>
+        </div>
+        <p class="hint">Pick a tool, then click or drag on the preview. Each annotation can show on any range of frames.</p>
+      </div>
+      <div class="group">
+        <h3>Layers <span id="annoCount" class="mono muted"></span></h3>
+        <ul id="annoList" class="annolist"></ul>
+      </div>
+      <div class="group" id="annoProps"></div>
+    </div>
+
+    <!-- EXPORT -->
+    <div class="pane" id="pane-export" hidden>
+      <div class="group">
+        <h3>Size</h3>
+        <div class="row">
+          <label class="grow">Width
+            <span class="unit"><input id="expW" type="number" min="16" max="4096"><i>px</i></span>
+          </label>
+          <span id="expDims" class="mono muted"></span>
+        </div>
+        <div class="row wrap quick">
+          <button class="btn sm" data-scale="100">100%</button><button class="btn sm" data-scale="75">75%</button>
+          <button class="btn sm" data-scale="50">50%</button><button class="btn sm" data-scale="33">33%</button>
+        </div>
+        <div class="row">
+          <label class="grow">Max frame rate
+            <select id="expFps"><option value="0">Keep original</option><option value="30">30 fps</option><option value="24">24 fps</option><option value="20">20 fps</option><option value="15">15 fps</option><option value="12">12 fps</option><option value="10">10 fps</option><option value="8">8 fps</option></select>
+          </label>
+        </div>
+        <div class="row">
+          <label class="grow">Loop
+            <select id="expLoop"><option value="0">Forever</option><option value="1">Play once</option><option value="2">Twice</option><option value="3">3 times</option><option value="5">5 times</option></select>
+          </label>
+          <label class="mini-lbl">Background <input type="color" id="expBg" value="#ffffff"></label>
+        </div>
+      </div>
+
+      <div class="group">
+        <h3>Smaller files</h3>
+        <div class="row">
+          <label class="grow">Only store what changes
+            <select id="expDiff">
+              <option value="off">Off (every frame in full)</option>
+              <option value="exact">Exact (lossless)</option>
+              <option value="light" selected>Light</option>
+              <option value="medium">Medium</option>
+            </select>
+          </label>
+        </div>
+        <p class="hint">Best for screen recordings: static areas are stored once. Light and Medium ignore tiny noise.</p>
+      </div>
+
+      <div class="group">
+        <h3>GIF options</h3>
+        <div class="row">
+          <label class="grow">Colours
+            <select id="gifColors"><option value="256" selected>256</option><option value="128">128</option><option value="64">64</option><option value="32">32</option><option value="16">16</option></select>
+          </label>
+          <label class="grow">Dithering
+            <select id="gifDither"><option value="none">None</option><option value="light" selected>Light</option><option value="full">Full</option></select>
+          </label>
+        </div>
+        <div class="row">
+          <label class="grow">Palette
+            <select id="gifPalette"><option value="global" selected>One for all frames (stable, smaller)</option><option value="local">Per frame (best quality)</option></select>
+          </label>
+        </div>
+      </div>
+
+      <div class="group">
+        <h3>WebP options</h3>
+        <div class="row">
+          <label class="grow"><span class="split">Quality <b id="webpQVal" class="mono">80</b></span>
+            <input type="range" id="webpQuality" min="10" max="100" value="80">
+          </label>
+        </div>
+        <div class="row"><label class="check"><input type="checkbox" id="webpLossless"> Lossless (bigger, pixel-perfect)</label></div>
+        <p class="hint" id="webpWarn" hidden>This browser can't encode WebP. Use Chrome, Edge or Firefox.</p>
+      </div>
+
+      <div class="group">
+        <div id="expSummary" class="summary mono"></div>
+        <div class="row">
+          <button id="btnRenderGif" class="btn primary grow">Render GIF</button>
+          <button id="btnRenderWebp" class="btn primary grow">Render WebP</button>
+        </div>
+        <div id="progress" hidden>
+          <div class="bar"><i id="progBar"></i></div>
+          <div class="row"><span id="progText" class="mono muted grow"></span><button id="btnCancel" class="btn sm">Cancel</button></div>
+        </div>
+        <div id="results"></div>
+      </div>
+    </div>
+  </aside>
+</main>
+
+<section class="timeline">
+  <div class="strip" id="strip" tabindex="0" aria-label="Frames"><div class="strip-inner" id="stripInner"></div></div>
+  <div class="status" id="status">No frames yet</div>
+</section>
+
+<div id="recbar" hidden>
+  <span class="dot"></span>
+  <span id="recMsg">Recording</span>
+  <span id="recTime" class="mono">0:00</span>
+  <span id="recCount" class="mono muted"></span>
+  <button id="recStop" class="btn sm danger">Stop</button>
+</div>
+
+<dialog id="recDlg">
+  <form method="dialog">
+    <h2>Record screen</h2>
+    <p class="hint">You'll choose a screen, window or tab next. Recording keeps going while you work elsewhere; stop it here or with your browser's "Stop sharing" button.</p>
+    <div class="form">
+      <label>Frame rate
+        <select id="recFps"><option value="8">8 fps</option><option value="10">10 fps</option><option value="12">12 fps</option><option value="15" selected>15 fps</option><option value="20">20 fps</option><option value="30">30 fps</option></select>
+      </label>
+      <label>Max width
+        <select id="recW"><option value="480">480 px</option><option value="640">640 px</option><option value="800">800 px</option><option value="960" selected>960 px</option><option value="1280">1280 px</option><option value="99999">Original</option></select>
+      </label>
+      <label>Start after
+        <select id="recDelay"><option value="0">Right away</option><option value="3" selected>3 seconds</option><option value="5">5 seconds</option></select>
+      </label>
+      <label class="check"><input type="checkbox" id="recSkip" checked> Skip identical frames (saves memory)</label>
+    </div>
+    <div class="dlg-actions">
+      <button value="cancel" class="btn">Cancel</button>
+      <button id="recStart" class="btn rec" value="default">Choose what to record…</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="impDlg">
+  <form method="dialog">
+    <h2 id="impTitle">Open video</h2>
+    <p class="hint mono" id="impFile"></p>
+    <video id="impVideo" muted playsinline controls></video>
+    <div class="form" id="impVideoOpts">
+      <label>Frame rate
+        <select id="impFps"><option value="5">5 fps</option><option value="8">8 fps</option><option value="10">10 fps</option><option value="12" selected>12 fps</option><option value="15">15 fps</option><option value="20">20 fps</option><option value="24">24 fps</option><option value="30">30 fps</option></select>
+      </label>
+      <label>Max width
+        <select id="impW"><option value="480">480 px</option><option value="640">640 px</option><option value="800">800 px</option><option value="960" selected>960 px</option><option value="1280">1280 px</option><option value="99999">Original</option></select>
+      </label>
+      <label class="wide">Start <span id="impStartVal" class="mono muted"></span>
+        <input type="range" id="impStart" min="0" max="1" step="0.1" value="0">
+      </label>
+      <label class="wide">End <span id="impEndVal" class="mono muted"></span>
+        <input type="range" id="impEnd" min="0" max="1" step="0.1" value="1">
+      </label>
+      <p class="hint mono wide" id="impEst"></p>
+    </div>
+    <div class="form" id="impImgOpts" hidden>
+      <label>Max width
+        <select id="impImgW"><option value="480">480 px</option><option value="640">640 px</option><option value="800">800 px</option><option value="960" selected>960 px</option><option value="1280">1280 px</option><option value="99999">Original</option></select>
+      </label>
+    </div>
+    <div id="impProgWrap" hidden><div class="bar"><i id="impBar"></i></div></div>
+    <div class="dlg-actions">
+      <button value="cancel" class="btn" id="impCancel">Cancel</button>
+      <button id="impGo" class="btn primary" value="default">Import</button>
+    </div>
+  </form>
+</dialog>
+
+<div id="toast" role="status" aria-live="polite"></div>
+<input type="file" id="fileInput" accept="video/*,image/gif,image/webp,.mp4,.m4v,.mov,.webm,.mkv,.gif,.webp" hidden>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
