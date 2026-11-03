@@ -124,6 +124,8 @@ async def t_core(b, url, tmp):
     a = await pg.evaluate('__app.S.annos[0]')
     check('text annotation placed in source space', abs(a['x1'] - 320) < 3 and abs(a['y1'] - 180) < 3, a)
 
+    ver = await pg.evaluate("document.getElementById('ver').textContent")
+    check('footer shows a version', ver.startswith('v') and len(ver) > 3, ver)
     check('no console errors', not errs, errs[:3])
     await ctx.close()
 
@@ -358,6 +360,7 @@ async def t_record(b, url, tmp):
     await pg.wait_for_timeout(1200)
     await pg.click('#recPause')
     check('pause shows Paused / Resume', (await pg.inner_text('#recMsg')) == 'Paused' and (await pg.inner_text('#recPause')) == 'Resume')
+    await pg.wait_for_timeout(500)  # let frames already in flight land
     c1 = await pg.inner_text('#recCount')
     await pg.wait_for_timeout(2000)
     c2 = await pg.inner_text('#recCount')

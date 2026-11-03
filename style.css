@@ -199,6 +199,8 @@ label.check { flex-direction: row; align-items: center; gap: 8px; color: var(--t
 .status b { color: var(--text); font-weight: 600; }
 .status .warn, .save.warn { color: var(--accent-text); }
 .save.ok { color: var(--ok); }
+.status .ver { opacity: .8; margin-left: auto; align-self: center; }
+.status .ver + .zoom { margin-left: 0; }
 .status .zoom { display: flex; gap: 4px; margin-left: auto; }
 .status .zoom .btn { height: 22px; width: 28px; font-size: 15px; line-height: 1; }
 .restore { margin-top: 10px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--r); background: var(--raise); display: grid; gap: 10px; max-width: 360px; text-align: left; }

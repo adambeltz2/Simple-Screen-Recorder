@@ -4,6 +4,7 @@
 import { S, emit, setCur, commit, undo, redo, touch } from './state.js';
 import { canRecord } from './ingest.js';
 import { $, ui, initTheme } from './ui.js';
+import { VERSION, BUILT } from './version.js';
 import './timeline.js';
 import './annopanel.js';
 import './editpanel.js';
@@ -79,6 +80,7 @@ if (!canRecord()) {
   $('emptyHint').textContent = "Screen capture isn't available on this device, so record with your phone's built-in screen recorder and open the video here. You can also drop a file anywhere on this page.";
 }
 
+{ const v = $('ver'); if (v) { v.textContent = 'v' + VERSION; v.title = 'Built ' + BUILT; } }
 initTheme();
 refresh('change');
 offerRestore();

@@ -19,6 +19,7 @@ The owner (Adam) wants hobby apps **phone-first, self-contained and offline**. K
 | `index.html`, `style.css` | Page and styles (amber accent; all colours are CSS variables at the top of the stylesheet, with a dark default, `:root[data-theme=light]`, and a `prefers-color-scheme: light` block for auto; `pointer: coarse` block makes touch targets bigger) |
 | `js/main.js` | Entry point only: imports every module, keyboard shortcuts, service worker registration, share-target intake |
 | `js/ui.js` | `$`, `$$`, `clamp`, formatters, `toast`, `touchScale()`, theme toggle (`initTheme`), and the small `ui` flag object |
+| `js/version.js` | `VERSION` / `BUILT`, shown in the footer (`#ver`). Bump on each release |
 | `js/state.js` | The single mutable project object `S`, change events, undo/redo |
 | `js/stage.js` | Preview canvas: drawing, crop/select/annotation pointer tools |
 | `js/timeline.js` | Virtualised thumbnail strip, zoom, tap/double-tap |
