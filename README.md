@@ -46,6 +46,8 @@ To run it locally: `python3 -m http.server 8000` in this folder, then open `http
 
 ## Using it on a phone
 
+**Countdown:** with a 3 or 5 second delay the page flashes a big number each second and a red flash when recording starts. The tab title and the floating Stop window show it too, for when you are looking at another window.
+
 **Simple and Advanced:** the switch in the header changes how much you see. Simple is three steps (Trim, Crop, Add a note) then an Export screen where you pick a format (GIF or WebP) and what it is for (Chat or email, Web page or docs, Best quality, Tiny). Advanced is the full editor. Simple's choices fill in the same settings Advanced shows, so you can switch over and fine-tune. The choice is remembered.
 
 The header's contrast button switches between automatic (follows your device), light and dark; your choice is remembered.

@@ -377,3 +377,17 @@ dialog form { margin: 0; }
   .goal { min-height: 60px; }
   .linkbtn { padding: 12px 0; }
 }
+
+/* Countdown before a recording: a big flashing number so it is obvious when it runs and when it starts. */
+#cdOverlay { position: fixed; inset: 0; z-index: 70; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; background: rgba(10,12,16,.84); color: #fff; pointer-events: none; text-align: center; }
+#cdOverlay[hidden] { display: none; }
+#cdOverlay.tick { animation: cdFlash 1s ease-out; }
+#cdOverlay.go { animation: cdGo .9s ease-out forwards; }
+#cdLabel { font-size: clamp(18px, 4vw, 34px); font-weight: 700; letter-spacing: .5px; }
+#cdNum { font-size: min(46vw, 46vh); font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; color: #ffb957; text-shadow: 0 6px 40px rgba(0,0,0,.5); }
+#cdNum.pop { animation: cdPop 1s ease-out; }
+#cdOverlay.go #cdNum { color: #ff4d42; }
+#cdCancel { pointer-events: auto; margin-top: 8px; }
+@keyframes cdFlash { 0% { background: rgba(255,167,51,.95); } 60% { background: rgba(10,12,16,.84); } }
+@keyframes cdGo { 0% { background: rgba(255,77,66,.95); opacity: 1; } 60% { opacity: 1; } 100% { background: rgba(255,77,66,0); opacity: 0; } }
+@keyframes cdPop { 0% { transform: scale(1.4); opacity: 0; } 18% { opacity: 1; } 100% { transform: scale(.82); } }

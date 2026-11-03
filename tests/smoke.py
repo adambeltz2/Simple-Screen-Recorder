@@ -355,6 +355,45 @@ async def start_recording(pg, fps='10', width='480', pip=False):
     await pg.wait_for_function('document.getElementById("recMsg").textContent === "Recording"', timeout=10000)
 
 
+async def t_countdown(b, url, tmp):
+    ctx, pg, errs = await new_page(b, url)
+    await pg.add_init_script(FAKE_SCREEN)
+    await pg.reload()
+    base = await pg.title()
+    await pg.click('#btnRecord'); await pg.wait_for_selector('#recDlg[open]')
+    await pg.select_option('#recDelay', '3'); await pg.select_option('#recFps', '10'); await pg.select_option('#recW', '480')
+    if await pg.evaluate('!document.getElementById("recPipRow").hidden'):
+        await pg.uncheck('#recPip')
+    await pg.click('#recStart')
+    await pg.wait_for_selector('#cdOverlay:not([hidden])', timeout=10000)
+    seen = set()
+    for _ in range(14):
+        seen.add(await pg.inner_text('#cdNum'))
+        await pg.wait_for_timeout(250)
+    check('countdown overlay shows 3, 2 and 1', {'3', '2', '1'} <= seen, seen)
+    check('countdown number is big', await pg.evaluate('parseFloat(getComputedStyle(document.getElementById("cdNum")).fontSize)') >= 150)
+    await pg.wait_for_function('document.getElementById("recMsg").textContent === "Recording"', timeout=10000)
+    check('tab title shows REC while recording', (await pg.title()).startswith('●'), await pg.title())
+    await pg.wait_for_function('document.getElementById("cdOverlay").hidden', timeout=4000)
+    check('overlay clears itself after the start flash', True)
+    await pg.click('#recStop')
+    await pg.wait_for_function('!document.getElementById("recbar") || document.getElementById("recbar").hidden', timeout=15000)
+    check('tab title is restored afterwards', await pg.title() == base, await pg.title())
+    # cancelling during the countdown
+    await pg.evaluate('__app.S.frames = []')
+    await pg.click('#btnRecord'); await pg.wait_for_selector('#recDlg[open]')
+    await pg.select_option('#recDelay', '5')
+    if await pg.evaluate('!document.getElementById("recPipRow").hidden'):
+        await pg.uncheck('#recPip')
+    await pg.click('#recStart')
+    await pg.wait_for_selector('#cdOverlay:not([hidden])', timeout=10000)
+    await pg.click('#cdCancel')
+    await pg.wait_for_function('document.getElementById("cdOverlay").hidden', timeout=4000)
+    check('Cancel during the countdown stops it', await pg.title() == base and await pg.evaluate('document.getElementById("recbar").hidden'))
+    check('no console errors', not errs, errs[:3])
+    await ctx.close()
+
+
 async def t_record(b, url, tmp):
     ctx, pg, errs = await new_page(b, url)
     await pg.add_init_script(FAKE_SCREEN)
@@ -765,7 +804,7 @@ async def t_mode(b, url, tmp):
     await ctx.close()
 
 
-TESTS = {'core': t_core, 'export': t_export, 'persist': t_persist, 'edit': t_edit, 'addclip': t_addclip, 'record': t_record, 'export2': t_export2, 'phone': t_phone, 'assets': t_assets, 'offline': t_offline, 'theme': t_theme, 'mode': t_mode}
+TESTS = {'core': t_core, 'export': t_export, 'persist': t_persist, 'edit': t_edit, 'addclip': t_addclip, 'record': t_record, 'export2': t_export2, 'phone': t_phone, 'assets': t_assets, 'offline': t_offline, 'theme': t_theme, 'mode': t_mode, 'countdown': t_countdown}
 
 
 async def main():

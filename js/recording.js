@@ -22,7 +22,7 @@ const recbar = $('recbar');
 const pipSupported = () => 'documentPictureInPicture' in window;
 if (pipSupported()) $('recPipRow').hidden = false;
 
-let pip = null; // { win, time, pauseBtn, dot }
+let pip = null; // { win, time, pauseBtn, dot, flash }
 
 function openPip() {
   if (!pipSupported() || !$('recPip').checked) return Promise.resolve(null);
@@ -44,7 +44,8 @@ function buildPip(win) {
   const stop = d.createElement('button'); stop.className = 'stop'; stop.textContent = 'Stop'; stop.onclick = () => { if (rec) rec.stop(); };
   d.head.append(st);
   d.body.append(dot, time, pauseBtn, stop);
-  const w = { win, time, pauseBtn, dot };
+  const flash = (color) => { try { d.body.animate([{ background: color }, { background: '#191c25' }], { duration: 800 }); } catch { /* ignore */ } };
+  const w = { win, time, pauseBtn, dot, flash };
   win.addEventListener('pagehide', () => { if (pip === w) pip = null; });
   return w;
 }
@@ -52,6 +53,48 @@ function buildPip(win) {
 function closePip() {
   if (pip) { try { pip.win.close(); } catch { /* already closed */ } pip = null; }
 }
+
+// ---- countdown ---------------------------------------------------------------------------
+// The tool's own tab is usually behind the window being recorded, so the countdown is shown
+// in four places: a full-page flash here, the tab title, the floating window (if open), and
+// the status bar.
+
+const BASE_TITLE = document.title;
+const cd = $('cdOverlay');
+let cdTimer = 0;
+function retrigger(el, cls) { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); }
+
+function cdTick(n) {
+  clearTimeout(cdTimer);
+  cd.hidden = false;
+  cd.classList.remove('go');
+  $('cdLabel').textContent = 'Recording starts in';
+  $('cdNum').textContent = n;
+  retrigger(cd, 'tick');
+  retrigger($('cdNum'), 'pop');
+  document.title = `${n}… ${BASE_TITLE}`;
+  if (pip) { pip.time.textContent = `Starting in ${n}…`; pip.flash('#ffa733'); }
+}
+
+function cdGo() {
+  clearTimeout(cdTimer);
+  cd.hidden = false;
+  cd.classList.remove('tick');
+  $('cdLabel').textContent = 'Recording!';
+  $('cdNum').textContent = '●';
+  retrigger(cd, 'go');
+  document.title = `● REC ${BASE_TITLE}`;
+  if (pip) pip.flash('#ff4d42');
+  cdTimer = setTimeout(() => { cd.hidden = true; }, 900);
+}
+
+function cdHide() {
+  clearTimeout(cdTimer);
+  cd.hidden = true;
+  cd.classList.remove('tick', 'go');
+  document.title = BASE_TITLE;
+}
+$('cdCancel').onclick = () => { if (rec) rec.stop(); };
 
 // ---- status bar ------------------------------------------------------------------------
 
@@ -76,7 +119,7 @@ function showRecbar(msg, running = false) {
     recTimer = setInterval(upd, 250);
   }
 }
-function hideRecbar() { recbar.hidden = true; recbar.classList.remove('paused'); clearInterval(recTimer); closePip(); }
+function hideRecbar() { cdHide(); recbar.hidden = true; recbar.classList.remove('paused'); clearInterval(recTimer); closePip(); }
 
 function syncPause() {
   const p = !!(rec && rec.paused);
@@ -115,8 +158,8 @@ async function startRecording() {
   const r = new Recorder(
     { fps: +$('recFps').value, maxW: +$('recW').value, delay: +$('recDelay').value, skipIdentical: $('recSkip').checked },
     {
-      onCountdown: (n) => showRecbar(`Starting in ${n}…`),
-      onStart: () => showRecbar('Recording', true),
+      onCountdown: (n) => { showRecbar(`Starting in ${n}…`); cdTick(n); },
+      onStart: () => { showRecbar('Recording', true); cdGo(); },
       onDone: ({ frames, W, H }) => {
         rec = null;
         hideRecbar();
