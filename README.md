@@ -11,21 +11,28 @@ Record your screen (or open a video, GIF or animated WebP), edit it frame by fra
 - **Open** a video (MP4, WebM, MOV where the browser can play it) with a chosen frame rate, width and start/end range.
 - **Open** an existing GIF or animated WebP to re-edit it (Chromium browsers).
 - Drag and drop a file anywhere on the page.
+- **Pause / resume** while recording, and (in Chrome/Edge) a small always-on-top **Stop / Pause window**, so you can stop without coming back to this tab.
+- **Add a clip**: insert another video, GIF or WebP before, after or at the end of what you have; it is scaled to fit.
+- **Autosave**: your project is saved on this device as you work. If the tab crashes or you close it, the next visit offers to restore it.
 
 **Edit**
-- Timeline with scrub, range selection (click, drag, shift-click), per-frame delay shown.
+- Timeline with scrub, range selection (click, drag, shift-click), per-frame delay shown. Zoom the thumbnails with − / +; double-click (or double-tap) a frame to change its delay.
+- Copy, cut and paste frames (Ctrl+C / X / V).
 - Trim before/after, keep or delete a selection, duplicate, reverse, ping-pong loop.
 - Speed up or slow down a range, set an exact frame delay, halve the frame rate (timing preserved).
 - Merge duplicate frames (identical / near-identical / similar).
 - Crop (drag on the preview, type numbers, or pick an aspect ratio), then **Apply crop** (or press Enter) to preview the result; **Edit crop** adjusts it. Plus resize.
-- Annotations that each appear on any range of frames: text, arrows, boxes, click-highlight spots, and pixelate-to-hide areas. Select, move and resize them on the preview.
+- Annotations that each appear on any range of frames: text, arrows, boxes, click-highlight spots, and pixelate-to-hide areas. Select, move and resize them on the preview (text has a corner handle). Each can **fade in and out**.
 - Undo/redo for everything.
 
 **Export**
 - GIF: 16 to 256 colours, optional dithering, one shared palette or one per frame.
 - Animated WebP: lossy with a quality slider, or lossless.
 - "Only store what changes" (on by default) stores just the region that changed between frames. For screen recordings this is usually the biggest size win.
-- Render both and compare sizes side by side before downloading. Share button on phones.
+- **Fit under a size limit** (1 to 25 MB): tries your settings, then steps down colours, quality, frame rate and size until the file fits.
+- **MP4 or WebM video** (where the browser can encode it): usually many times smaller than a GIF for long clips.
+- A time-remaining estimate and a Cancel button while rendering.
+- Render several formats and compare sizes side by side before downloading. Share button on phones.
 
 ## Deploy to GitHub Pages
 
@@ -71,16 +78,23 @@ Frames are held uncompressed in memory (width × height × 4 bytes each). The st
 ```
 index.html            page
 style.css
-js/main.js            UI wiring (stage, timeline, panels, dialogs)
+js/main.js            entry point, keyboard shortcuts
+js/stage.js, timeline.js, transport.js, panels.js, editpanel.js,
+  annopanel.js, recording.js, importer.js, exportpanel.js, project.js, ui.js
+                      the UI, one module per area
 js/state.js           project state, undo/redo
+js/persist.js         autosave and restore (IndexedDB)
 js/render.js          drawing frames and annotations (shared by preview and export)
 js/ops.js             frame operations (trim, speed, reverse, merge…)
 js/ingest.js          screen recording, video and GIF/WebP import
-js/exporter.js        export pipeline
+js/exporter.js        GIF/WebP export pipeline, fit-to-size
+js/video.js           MP4/WebM export (WebCodecs)
+tests/smoke.py        end-to-end tests in real Chrome
 encoder-worker.js     runs the encoders off the main thread
 lib/encoders.js       GIF + WebP encoders with changed-region storage
 lib/webpmux.js        animated-WebP muxer (browsers can't encode animations natively)
 lib/gifenc/           vendored GIF encoder (see below)
+lib/muxers/           vendored MP4 and WebM muxers (see below)
 sw.js, manifest.webmanifest, icons/   offline + install + share target
 ```
 
@@ -88,8 +102,20 @@ sw.js, manifest.webmanifest, icons/   offline + install + share target
 
 `lib/gifenc/` is [gifenc](https://github.com/mattdesl/gifenc) by Matt DesLauriers (MIT, license included). It has one local patch: `left`/`top` options on `writeFrame` so frames can be stored as sub-rectangles.
 
+`lib/muxers/` holds [mp4-muxer](https://github.com/Vanilagy/mp4-muxer) and [webm-muxer](https://github.com/Vanilagy/webm-muxer) by Vanilagy (MIT, licences included, unmodified). They only write the container; the video itself is encoded by your browser.
+
+## Keyboard
+
+Space play/pause · ← → step (Shift extends the selection) · Home/End · Delete · Ctrl+Z / Ctrl+Shift+Z · Ctrl+C / X / V · D frame delay · V select tool · Enter apply crop · Esc deselect.
+
+## Running the tests
+
+`python3 tests/smoke.py` (needs Chrome, ffmpeg, Playwright and Pillow). See CLAUDE.md.
+
 ## Known limits
 
 - Screen capture always goes through the browser's own picker; the page can't choose a source for you.
 - Click and keystroke overlays aren't possible (browsers don't expose that), but the **Spot** annotation can mark clicks by hand.
 - GIF can't go below 20 ms per frame, so very fast recordings are capped at about 50 fps.
+- Video export has no sound and can't carry a loop flag. Chat apps and websites usually loop short clips themselves.
+- Autosave stores your frames in the browser's own storage. Clearing site data removes them, and a very long recording may exceed the storage the browser allows (the status bar says when autosave stops).

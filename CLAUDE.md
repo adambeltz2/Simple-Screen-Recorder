@@ -16,24 +16,43 @@ The owner (Adam) wants hobby apps **phone-first, self-contained and offline**. K
 
 | Path | Role |
 |---|---|
-| `index.html`, `style.css` | Page and styles (dark theme, amber accent, CSS variables at top of the stylesheet) |
-| `js/main.js` | All UI wiring: stage pointer handling, timeline strip, panels, dialogs, recording/import/export flows, keyboard |
+| `index.html`, `style.css` | Page and styles (dark theme, amber accent, CSS variables at top of the stylesheet; `pointer: coarse` block makes touch targets bigger) |
+| `js/main.js` | Entry point only: imports every module, keyboard shortcuts, service worker registration, share-target intake |
+| `js/ui.js` | `$`, `$$`, `clamp`, formatters, `toast`, `touchScale()`, and the small `ui` flag object |
 | `js/state.js` | The single mutable project object `S`, change events, undo/redo |
-| `js/render.js` | Draws a frame + its annotations. Used by BOTH the preview and the export, so they match |
-| `js/ops.js` | Pure frame-list operations (trim, speed, reverse, ping-pong, merge duplicates…) |
-| `js/ingest.js` | `Recorder` (screen capture), video import by seeking, GIF/WebP import via `ImageDecoder` |
-| `js/exporter.js` | Renders frames, feeds an encoder (worker, or main-thread fallback), returns a Blob |
+| `js/stage.js` | Preview canvas: drawing, crop/select/annotation pointer tools |
+| `js/timeline.js` | Virtualised thumbnail strip, zoom, tap/double-tap |
+| `js/transport.js` | Play/pause, seek |
+| `js/panels.js` | Tabs, status bar, and `refresh()` (the one place that re-renders on state change) |
+| `js/editpanel.js` | Edit tab: selection, timing, crop numbers, clipboard, delay dialog |
+| `js/annopanel.js` | Annotate tab: layer list and properties |
+| `js/recording.js` | Record dialog, status bar, pause/resume, floating Stop window (Document PiP) |
+| `js/importer.js` | Open / add-a-clip dialog and drag-drop |
+| `js/exportpanel.js` | Export tab: settings, target size, results cards |
+| `js/project.js` | Undo/redo/New buttons, `loadProject`, restore prompt |
+| `js/persist.js` | Autosave to IndexedDB (see below) |
+| `js/render.js` | Draws a frame + its annotations (incl. fades). Used by BOTH the preview and the export, so they match |
+| `js/ops.js` | Pure frame-list operations (trim, speed, reverse, ping-pong, merge duplicates, insert…) |
+| `js/ingest.js` | `Recorder` (screen capture, pause), video import by seeking, GIF/WebP import via `ImageDecoder`, `fitFrames` |
+| `js/exporter.js` | Renders frames, feeds an encoder (worker, or main-thread fallback); `renderFit` size-limit ladder |
+| `js/video.js` | MP4/WebM export with WebCodecs + the vendored muxers |
 | `encoder-worker.js` | Thin worker wrapper; serialises messages |
 | `lib/encoders.js` | `AnimEncoder`: GIF and WebP encoding with changed-region storage |
 | `lib/webpmux.js` | Hand-written animated-WebP (RIFF/ANMF) muxer |
 | `lib/gifenc/` | Vendored gifenc (MIT), **locally patched** (see below) |
+| `lib/muxers/` | Vendored `mp4-muxer` 5.2.2 and `webm-muxer` 5.1.4 (MIT, unmodified; licences alongside) |
 | `sw.js`, `manifest.webmanifest`, `icons/` | Offline, install, and Android share-target |
+| `tests/smoke.py` | End-to-end test suite (see Testing) |
 
 ## Design decisions to preserve
 
 - **Frames are immutable objects** `{id, seq, bmp, delay, thumb}`. Edits create new frame objects that share the same `ImageBitmap`. That is what makes undo a cheap array copy. Never mutate a frame in place after it is in `S.frames`.
 - **`seq` is a frame's original identity.** Annotations store `from`/`to` in `seq` space, so they keep their place when frames are deleted, reversed or duplicated. Copies share their source's `seq`. "To the end" is `1e12`.
 - **Undo model:** `commit(key, mutate, {soft})` = checkpoint + mutate + notify. For drags: `checkpoint()` on pointer down, mutate during, `touch()` on pointer up, `discardCheckpoint()` if nothing moved. `emit('view')` is for cursor/selection/tool changes only; `emit('change')` (via `touch`) bumps `S.version`, which invalidates rendered export results.
+- **Autosave** (`persist.js`): each *unique* `ImageBitmap` is PNG-encoded once (WeakMap bitmap→key, so duplicated frames and repeat saves cost nothing), then a `meta` record is written, then unused bitmaps are deleted. Order matters: a crash mid-save leaves the previous save intact. `seq` and annotation ids are preserved on restore (`restoreFrame`, `ensureIds`). An empty project only wipes the saved copy after the session has had frames, so opening the page never destroys a save. `hasUnsavedWork()` drives the leave-page warning.
+- **Fades are measured in milliseconds, not frames** (`buildTiming` in `render.js`), computed over whatever list is being drawn (preview frames or the export's resampled list), so they survive deleting, speeding up or resampling. `buildTiming` returns `null` when nothing fades, which keeps the common case free.
+- **Size-limit export** (`renderFit`): a ladder of progressively smaller settings; `renderExport` aborts an attempt early (`OverBudget`) once ≥25% of frames are in and the projection is >1.5× the budget. Video skips the ladder and sets the bitrate from the target (one retry).
+- **Recorder pause**: frames keep arriving but are dropped; `offset` removes the paused span from the timeline so delays stay right.
 - **Crop and resize are non-destructive**, applied only at export. Frames always keep full size. "Apply crop" (button, Enter, or switching tool) is a view change only: when `S.crop` is set and the tool isn't `crop`, the preview canvas shows just the crop region (`viewRect()` in `main.js`; `drawOverlay` takes an offset). Pointer coords go through `toSrc`, which maps back to full-frame pixels, so annotations stay in source space. Timeline thumbnails still show full frames.
 - **Delays are milliseconds** everywhere in app state. GIF rounds to centiseconds inside the encoder, carrying the rounding error forward and clamping to a 20 ms minimum.
 - **Recording uses `MediaStreamTrackProcessor`** (not timers or rAF) because the capturing tab is in the background while recording, and background timers are throttled to 1 Hz. Firefox uses a video-element fallback.
@@ -50,24 +69,27 @@ The owner (Adam) wants hobby apps **phone-first, self-contained and offline**. K
 
 ## Testing
 
-There is no test framework. Verify by running it in a real browser:
-
 ```bash
-python3 -m http.server 8765          # serve the repo root
+python3 tests/smoke.py                 # whole suite (~4 min)
+python3 tests/smoke.py --only core,persist
+SHOTS_DIR=/tmp/shots python3 tests/smoke.py --only phone   # keep phone screenshots
 ```
 
-then drive it with Playwright using system Chrome (`executable_path='/usr/bin/google-chrome'`, `--no-sandbox`). `window.__app` exposes `{ S, openFile, loadProject }` for assertions.
+It serves the repo itself and drives real Chrome (`/usr/bin/google-chrome`, `--no-sandbox`) with Playwright. Needs `ffmpeg`/`ffprobe` and Pillow. Suites: `core`, `export`, `export2` (size limit, MP4/WebM verified with ffprobe, fades, cancel), `persist`, `edit`, `addclip`, `record`, `phone` (Pixel 7 touch emulation: overflow, tap-target size, 16px inputs, sticky preview, finger drags), `assets` (every imported module is in `sw.js` `ASSETS`; every named import exists), `offline` (real service worker, network cut).
 
-Useful recipes:
-- **Import:** `ffmpeg -f lavfi -i testsrc=size=640x360:rate=30:duration=3 -pix_fmt yuv420p test.mp4`, `set_input_files('#fileInput', ...)`, pick fps in `#impFps`, click `#impGo`, wait for `__app.S.frames.length`.
-- **Check outputs:** read the result `<a download>` blobs back with `fetch(a.href)`, then decode with PIL (`Image.open(...).n_frames`, per-frame durations, pixel error against the source). Parse the WebP container directly if PIL's duration readout is `None` (it can be).
-- **Recording:** headless Chrome can't complete the real screen picker. Test the pipeline by overriding `navigator.mediaDevices.getDisplayMedia` via `add_init_script` to return `canvas.captureStream()`.
-- GIF/WebP encoders can be unit-tested directly: the GIF path in plain Node (`import { AnimEncoder } from './lib/encoders.js'`), the WebP path inside Chrome (it needs `OffscreenCanvas`).
+Run the full suite before pushing anything that touches more than one module. `eslint` with `no-undef` is a good extra check for missing imports, but it can't see a *missing export*; the `assets` suite does.
+
+Gotchas for writing tests:
+- `window.__app` exposes `{ S, openFile, loadProject, saveNow, setCur, touch }`.
+- Dialogs must be accepted (`confirm()` is used before replacing a project); the test helper does it.
+- Headless can't complete the real screen picker: override `navigator.mediaDevices.getDisplayMedia` with a `canvas.captureStream()` (see `FAKE_SCREEN`). Document PiP is stubbed with a popup (`FAKE_PIP`).
+- On the phone profile, clicking a control in the panel scrolls the page; the timeline then sits under the pinned preview. `scrollTo(0,0)` before tapping it.
+- Read result blobs back with `fetch(a.href)` and decode with PIL / ffprobe.
 
 ## Not yet verified on a real device
 
-The actual screen-picker flow, the Android share target (`share_target` in the manifest + `sw.js`), and install/offline behaviour on a phone. Check these first when Pages is live.
+Everything above passes in headless desktop Chrome, including a Pixel 7 touch emulation and a real service-worker offline run. Still untested on actual hardware: the real screen-picker flow, the Android share target (`share_target` in the manifest + `sw.js`), install-to-home-screen, Document PiP in a real window, H.264 encoding on a phone, and Safari/Firefox generally. Check these first on a real device.
 
 ## Ideas not built yet
 
-Per-region quality, text-box resizing handles, adding frames from a second clip, OPFS-backed frame storage for very long recordings, a Document Picture-in-Picture stop button for recording.
+Per-region quality, OPFS-backed frame storage for very long recordings (autosave already uses IndexedDB, but frames are still held in memory), range selection by long-press on touch, audio, an APNG export.

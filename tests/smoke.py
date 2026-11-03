@@ -14,6 +14,8 @@ from playwright.async_api import async_playwright
 
 ROOT = Path(__file__).resolve().parent.parent
 FAILS = []
+DEVICES = {}
+SHOTS = os.environ.get('SHOTS_DIR', '')  # set to a folder to keep screenshots
 
 
 def check(name, cond, extra=''):
@@ -490,7 +492,164 @@ async def t_export2(b, url, tmp):
     await ctx.close()
 
 
-TESTS = {'core': t_core, 'export': t_export, 'persist': t_persist, 'edit': t_edit, 'addclip': t_addclip, 'record': t_record, 'export2': t_export2}
+async def touch_drag(cdp, x0, y0, x1, y1, steps=8):
+    send = lambda t, pts: cdp.send('Input.dispatchTouchEvent', {'type': t, 'touchPoints': pts})
+    await send('touchStart', [{'x': x0, 'y': y0}])
+    for i in range(1, steps + 1):
+        await send('touchMove', [{'x': x0 + (x1 - x0) * i / steps, 'y': y0 + (y1 - y0) * i / steps}])
+        await asyncio.sleep(0.01)
+    await send('touchEnd', [])
+
+
+async def shot(pg, name):
+    if SHOTS:
+        Path(SHOTS).mkdir(parents=True, exist_ok=True)
+        await pg.screenshot(path=str(Path(SHOTS) / f'{name}.png'))
+
+
+async def t_phone(b, url, tmp):
+    ctx, pg, errs = await new_page(b, url, **DEVICES['Pixel 7'])
+    overflow = '() => document.documentElement.scrollWidth - window.innerWidth'
+    check('empty screen: no sideways overflow', await pg.evaluate(overflow) <= 0, await pg.evaluate(overflow))
+    await shot(pg, 'phone-1-empty')
+    await import_video(pg, make_video(tmp, secs=2), fps='8', width=640)
+    await shot(pg, 'phone-2-edit')
+
+    for tab in ('edit', 'annotate', 'export'):
+        await pg.click(f'[data-tab={tab}]')
+        ov = await pg.evaluate(overflow)
+        check(f'{tab} tab: no sideways overflow', ov <= 0, ov)
+        small = await pg.evaluate("""() => [...document.querySelectorAll('.pane:not([hidden]) .btn, .pane:not([hidden]) select, .pane:not([hidden]) input[type=number], .tool, .tabs button, #btnPlay')]
+          .filter(e => e.offsetParent && !e.closest('[hidden]')).map(e => [e.id || e.className || e.tagName, Math.round(e.getBoundingClientRect().height)]).filter(x => x[1] < 38)""")
+        check(f'{tab} tab: tap targets are at least 38px tall', not small, small[:5])
+        fonts = await pg.evaluate("""() => [...document.querySelectorAll('.pane:not([hidden]) select, .pane:not([hidden]) input[type=number], .pane:not([hidden]) textarea')]
+          .filter(e => e.offsetParent).map(e => parseFloat(getComputedStyle(e).fontSize)).filter(f => f < 16)""")
+        check(f'{tab} tab: inputs are 16px+ (no iOS zoom-on-focus)', not fonts, fonts[:3])
+    await pg.click('[data-tab=edit]')
+
+    # sticky preview while scrolling the controls
+    await pg.evaluate('window.scrollTo(0, 500)')
+    top = await pg.evaluate('document.querySelector(".stage-col").getBoundingClientRect().top')
+    check('preview stays pinned while scrolling', abs(top) <= 1, top)
+    await pg.evaluate('window.scrollTo(0, 0)')
+
+    # finger drags on the preview
+    cdp = await ctx.new_cdp_session(pg)
+    await pg.click('[data-tool=crop]')
+    r = await view_rect(pg)
+    await touch_drag(cdp, r[0] + r[2] * .25, r[1] + r[3] * .25, r[0] + r[2] * .70, r[1] + r[3] * .70)
+    c1 = await pg.evaluate('__app.S.crop')
+    check('touch: dragging draws a crop', c1 is not None and c1['w'] > 150, c1)
+    # grab the SE corner a few px off the exact handle, as a fingertip would
+    sx = r[0] + (c1['x'] + c1['w']) * r[2] / 640 + 9
+    sy = r[1] + (c1['y'] + c1['h']) * r[3] / 360 + 9
+    await touch_drag(cdp, sx, sy, sx + 40, sy + 25)
+    c2 = await pg.evaluate('__app.S.crop')
+    check('touch: an imprecise grab still resizes the crop handle', c2['w'] > c1['w'] and c2['x'] == c1['x'], (c1, c2))
+    await shot(pg, 'phone-3-crop')
+    await pg.click('#cropApply')
+
+    # tap + double-tap on the timeline (clicking Apply scrolled the page; the timeline sits under the pinned preview until we scroll back)
+    await pg.evaluate('window.scrollTo(0, 0)')
+    box = await pg.evaluate('(()=>{const r=document.querySelectorAll("#strip .fr")[3].getBoundingClientRect();return [r.x+r.width/2, r.y+r.height/2]})()')
+    await pg.touchscreen.tap(box[0], box[1])
+    check('touch: tapping a frame selects it', await pg.evaluate('__app.S.cur') == 3)
+    await pg.touchscreen.tap(box[0], box[1])
+    try:
+        await pg.wait_for_selector('#delayDlg[open]', timeout=3000)
+        opened = True
+    except Exception:
+        opened = False
+    check('touch: double-tap opens the delay dialog', opened)
+    if opened:
+        await shot(pg, 'phone-4-delay')
+        await pg.click('#delayDlgCancel')
+
+    # add text by tapping, then resize with the handle by finger
+    await pg.click('[data-tab=annotate]')
+    await pg.click('[data-tool=text]')
+    r = await view_rect(pg)
+    await pg.touchscreen.tap(r[0] + r[2] * .3, r[1] + r[3] * .35)
+    check('touch: tap places text', await pg.evaluate('__app.S.annos.length') == 1)
+    await shot(pg, 'phone-5-annotate')
+    await pg.click('[data-tab=export]')
+    await shot(pg, 'phone-6-export')
+    hh = await pg.evaluate('document.querySelector(".top").getBoundingClientRect().height')
+    check('header fits on one row', hh < 66, hh)
+    check('no console errors', not errs, errs[:3])
+    await ctx.close()
+
+    # landscape phone: usable, no overflow
+    ctx, pg, errs = await new_page(b, url, **DEVICES['Pixel 7 landscape'])
+    await import_video(pg, make_video(tmp, secs=1, name='l.mp4'), fps='8', width=640)
+    check('landscape: no sideways overflow', await pg.evaluate(overflow) <= 0, await pg.evaluate(overflow))
+    await shot(pg, 'phone-7-landscape')
+    await ctx.close()
+
+
+def sw_assets():
+    import re
+    src = (ROOT / 'sw.js').read_text()
+    block = src[src.index('const ASSETS = ['):src.index('];', src.index('const ASSETS = ['))]
+    return [a for a in re.findall(r"'([^']+)'", block)]
+
+
+async def t_assets(b, url, tmp):
+    import re
+    assets = sw_assets()
+    missing = [a for a in assets if a != './' and not (ROOT / a).exists()]
+    check('every file in the offline list exists', not missing, missing)
+    listed = {a for a in assets}
+    # every module the app can load must be cached, or it will break offline
+    loaded = set()
+    for f in list((ROOT / 'js').glob('*.js')) + [ROOT / 'encoder-worker.js', ROOT / 'lib' / 'encoders.js', ROOT / 'lib' / 'webpmux.js']:
+        for m in re.finditer(r"(?:from\s+|import\()\s*['\"](\.[^'\"]+)['\"]", f.read_text()):
+            loaded.add(os.path.relpath((f.parent / m.group(1)).resolve(), ROOT))
+    for f in (ROOT / 'lib' / 'gifenc').glob('*.js'):
+        loaded.add(os.path.relpath(f, ROOT))
+    uncached = sorted(x for x in loaded if x not in listed)
+    check('every imported module is in the offline list', not uncached, uncached)
+    # every named import resolves to a real export (lint alone cannot see this)
+    bad = []
+    for f in (ROOT / 'js').glob('*.js'):
+        for m in re.finditer(r"import\s*\{([^}]*)\}\s*from\s*['\"](\.[^'\"]+)['\"]", f.read_text()):
+            target = (f.parent / m.group(2)).resolve()
+            if not target.exists() or 'muxers' in str(target):
+                continue
+            exports = target.read_text()
+            for name in [n.strip().split(' as ')[0].strip() for n in m.group(1).split(',') if n.strip()]:
+                if not re.search(r"export\s+(?:async\s+)?(?:function\*?|const|let|class)\s+" + re.escape(name) + r"(?![\w$])|export\s*\{[^}]*(?<![\w$])" + re.escape(name) + r"(?![\w$])", exports):
+                    bad.append(f'{f.name}: {name} from {m.group(2)}')
+    check('every named import exists in its module', not bad, bad)
+
+
+async def t_offline(b, url, tmp):
+    """Install the service worker, cut the network, reload: the app must still run."""
+    ctx, pg, errs = await new_page(b, url, service_workers='allow')
+    await pg.evaluate('navigator.serviceWorker.ready.then(() => true)')
+    await pg.wait_for_function('navigator.serviceWorker.controller !== null || true')
+    await pg.reload()  # now controlled by the worker
+    await pg.wait_for_function('navigator.serviceWorker.controller !== null', timeout=15000)
+    cached = await pg.evaluate('caches.open("ssr-app-v1").then(c => c.keys()).then(k => k.length)')
+    check('service worker cached the app', cached >= len(sw_assets()) - 1, (cached, len(sw_assets())))
+    await ctx.set_offline(True)
+    await pg.reload()
+    await pg.wait_for_selector('#emptyOpen')
+    await import_video(pg, make_video(tmp, secs=1), fps='5', width=480)
+    check('offline: can open a video and edit', await pg.evaluate('__app.S.frames.length') >= 4)
+    await pg.click('[data-tab=export]')
+    await pg.click('#btnRenderGif')
+    await pg.wait_for_selector('#results a[download$=".gif"]', timeout=60000)
+    check('offline: can export a GIF', True)
+    await pg.click('#btnRenderVideo') if await pg.evaluate('!document.getElementById("vidRow").hidden') else None
+    if await pg.evaluate('!document.getElementById("vidRow").hidden'):
+        await pg.wait_for_selector('#results a[download$=".mp4"], #results a[download$=".webm"]', timeout=60000)
+        check('offline: can export video (lazy-loaded muxer is cached)', True)
+    check('no console errors', not errs, errs[:3])
+    await ctx.close()
+
+
+TESTS = {'core': t_core, 'export': t_export, 'persist': t_persist, 'edit': t_edit, 'addclip': t_addclip, 'record': t_record, 'export2': t_export2, 'phone': t_phone, 'assets': t_assets, 'offline': t_offline}
 
 
 async def main():
@@ -501,6 +660,7 @@ async def main():
     srv, url = serve()
     with tempfile.TemporaryDirectory() as tmp:
         async with async_playwright() as p:
+            DEVICES.update(p.devices)
             b = await p.chromium.launch(executable_path='/usr/bin/google-chrome', headless=True, args=['--no-sandbox'])
             for n in names:
                 print(f'--- {n}')

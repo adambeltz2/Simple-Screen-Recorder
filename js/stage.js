@@ -3,7 +3,7 @@
 
 import { S, emit, selRange, commit, checkpoint, discardCheckpoint, touch, uid } from './state.js';
 import { drawScene, drawOverlay, hitAnno, annoHandles, hitCrop, annoActive, buildTiming, textBox } from './render.js';
-import { $, $$, clamp, FAR, ui, toast } from './ui.js';
+import { $, $$, clamp, FAR, ui, toast, touchScale } from './ui.js';
 import { stopPlayback } from './transport.js';
 import { activateTab } from './panels.js';
 import { curAnno } from './annopanel.js';
@@ -34,7 +34,7 @@ export function renderStage() {
   const tm = previewTiming();
   drawScene(vctx, f, { sx: c.x, sy: c.y, sw: c.w, sh: c.h, dw: c.w, dh: c.h }, S.annos, S.bg, tm && tm.at(S.cur));
   const k = c.w / (view.getBoundingClientRect().width || c.w);
-  drawOverlay(vctx, S, k, { x: c.x, y: c.y, cropped: isCropped() });
+  drawOverlay(vctx, S, k, { x: c.x, y: c.y, cropped: isCropped(), hs: touchScale() });
 }
 
 // ===========================================================================
@@ -79,7 +79,7 @@ view.addEventListener('pointerdown', (e) => {
   const p = toSrc(e);
 
   if (S.tool === 'crop') {
-    const hit = hitCrop(S.crop, p.x, p.y, p.k);
+    const hit = hitCrop(S.crop, p.x, p.y, p.k, touchScale());
     checkpoint();
     if (hit && hit !== 'move') drag = { kind: 'crop-resize', h: hit, start: { ...S.crop }, p0: p, moved: false };
     else if (hit === 'move') drag = { kind: 'crop-move', start: { ...S.crop }, p0: p, moved: false };
@@ -90,7 +90,7 @@ view.addEventListener('pointerdown', (e) => {
   if (S.tool === 'select') {
     const sel = curAnno();
     if (sel && annoActive(sel, f)) {
-      const h = annoHandles(sel).find((hd) => Math.hypot(hd.x - p.x, hd.y - p.y) <= 12 * p.k);
+      const h = annoHandles(sel).find((hd) => Math.hypot(hd.x - p.x, hd.y - p.y) <= 12 * p.k * touchScale());
       if (h) {
         checkpoint();
         drag = { kind: 'anno-handle', id: sel.id, h: h.id, p0: p, moved: false, start: { size: sel.size, w: sel.type === 'text' ? textBox(sel).w : 0 } };
@@ -99,7 +99,7 @@ view.addEventListener('pointerdown', (e) => {
     }
     for (let i = S.annos.length - 1; i >= 0; i--) {
       const a = S.annos[i];
-      if (annoActive(a, f) && hitAnno(a, p.x, p.y, 8 * p.k)) {
+      if (annoActive(a, f) && hitAnno(a, p.x, p.y, 8 * p.k * touchScale())) {
         S.selAnno = a.id;
         checkpoint();
         drag = { kind: 'anno-move', id: a.id, p0: p, orig: { x1: a.x1, y1: a.y1, x2: a.x2, y2: a.y2 }, moved: false };
@@ -142,7 +142,7 @@ view.addEventListener('pointermove', (e) => {
   if (!drag) { // hover feedback
     let cur = S.tool === 'select' ? 'default' : 'crosshair';
     const f = S.frames[S.cur];
-    if (S.tool === 'crop') { const h = hitCrop(S.crop, p.x, p.y, p.k); if (h) cur = CURSORS[h]; }
+    if (S.tool === 'crop') { const h = hitCrop(S.crop, p.x, p.y, p.k, touchScale()); if (h) cur = CURSORS[h]; }
     else if (S.tool === 'select' && f) {
       const sel = curAnno();
       if (sel && annoHandles(sel).some((hd) => Math.hypot(hd.x - p.x, hd.y - p.y) <= 12 * p.k)) cur = 'pointer';

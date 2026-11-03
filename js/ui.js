@@ -5,6 +5,10 @@ export const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 export const FAR = 1e12; // "to the end" for annotation ranges
 
+/** Finger-sized targets: handles and hit areas are larger on touch screens. */
+const coarseMq = window.matchMedia ? window.matchMedia('(pointer: coarse)') : null;
+export const touchScale = () => (coarseMq && coarseMq.matches ? 1.8 : 1);
+
 /** lastFocus: where the last click landed (decides what Delete removes). busyOp: a long edit is running. */
 export const ui = { lastFocus: 'stage', busyOp: false };
 

@@ -229,9 +229,9 @@ export function cropHandles(c) {
 }
 
 /** Which crop handle (or 'move') is under the pointer? k = frame px per CSS px. */
-export function hitCrop(c, px, py, k) {
+export function hitCrop(c, px, py, k, scale = 1) {
   if (!c) return null;
-  const tol = 12 * k;
+  const tol = 12 * k * scale;
   for (const h of cropHandles(c)) if (Math.abs(px - h.x) <= tol && Math.abs(py - h.y) <= tol) return h.id;
   if (px >= c.x && px <= c.x + c.w && py >= c.y && py <= c.y + c.h) return 'move';
   return null;
@@ -245,6 +245,7 @@ export function hitCrop(c, px, py, k) {
  * (x,y) is that region's origin and the crop shading is skipped.
  */
 export function drawOverlay(ctx, S, k, off = { x: 0, y: 0, cropped: false }) {
+  const hs = off.hs || 1; // handle size multiplier (bigger on touch screens)
   ctx.save();
   ctx.setTransform(1, 0, 0, 1, -off.x, -off.y);
   const W = S.W, H = S.H;
@@ -271,8 +272,8 @@ export function drawOverlay(ctx, S, k, off = { x: 0, y: 0, cropped: false }) {
         ctx.fillStyle = '#ffb347';
         ctx.strokeStyle = '#14161a';
         ctx.lineWidth = 1.5 * k;
-        ctx.fillRect(h.x - 5 * k, h.y - 5 * k, 10 * k, 10 * k);
-        ctx.strokeRect(h.x - 5 * k, h.y - 5 * k, 10 * k, 10 * k);
+        ctx.fillRect(h.x - 5 * k * hs, h.y - 5 * k * hs, 10 * k * hs, 10 * k * hs);
+        ctx.strokeRect(h.x - 5 * k * hs, h.y - 5 * k * hs, 10 * k * hs, 10 * k * hs);
       }
     }
   }
@@ -289,7 +290,7 @@ export function drawOverlay(ctx, S, k, off = { x: 0, y: 0, cropped: false }) {
       ctx.fillStyle = '#5ec8ff';
       ctx.strokeStyle = '#14161a';
       ctx.beginPath();
-      ctx.arc(h.x, h.y, 6 * k, 0, Math.PI * 2);
+      ctx.arc(h.x, h.y, 6 * k * hs, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
     }

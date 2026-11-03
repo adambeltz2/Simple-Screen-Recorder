@@ -73,7 +73,7 @@ label.check { flex-direction: row; align-items: center; gap: 8px; color: var(--t
 .unit i { font-style: normal; color: var(--muted); }
 
 /* ---- top bar ---- */
-.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 14px; background: var(--bg2); border-bottom: 1px solid var(--line); }
+.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px max(14px, env(safe-area-inset-right)) 8px max(14px, env(safe-area-inset-left)); background: var(--bg2); border-bottom: 1px solid var(--line); }
 .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: .1px; }
 .logo { width: 24px; height: 24px; }
 .top-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
@@ -184,12 +184,18 @@ dialog form { margin: 0; }
 #recbar .dot { width: 10px; height: 10px; border-radius: 50%; background: #ff4d42; animation: pulse 1.1s infinite; }
 @keyframes pulse { 50% { opacity: .3; } }
 #recbar.paused .dot { animation: none; background: var(--accent); }
-#toast { position: fixed; left: 50%; bottom: 22px; transform: translate(-50%, 20px); opacity: 0; pointer-events: none; z-index: 60; max-width: min(520px, calc(100vw - 28px)); padding: 10px 16px; background: #2a3040; border: 1px solid #3c4458; border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,.5); transition: opacity .2s, transform .2s; }
+#toast { position: fixed; left: 50%; bottom: calc(22px + env(safe-area-inset-bottom)); transform: translate(-50%, 20px); opacity: 0; pointer-events: none; z-index: 60; max-width: min(520px, calc(100vw - 28px)); padding: 10px 16px; background: #2a3040; border: 1px solid #3c4458; border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,.5); transition: opacity .2s, transform .2s; }
 #toast.show { opacity: 1; transform: translate(-50%, 0); }
 #toast.err { border-color: #7a3434; background: #3a2226; }
 
 /* ---- small screens: stack everything, let the page scroll ---- */
 @media (max-width: 900px) {
+  .top { padding-top: 6px; padding-bottom: 6px; gap: 8px; }
+  .brand { flex: none; }
+  .top-actions { flex: 1; flex-wrap: nowrap; gap: 4px; }
+  .top-actions .sep { display: none; }
+  .top-actions .btn { padding: 0 11px; }
+  .top-actions .btn.icon { padding: 0; }
   body { display: flex; flex-direction: column; height: auto; min-height: 100dvh; overflow-y: auto; }
   .work { display: contents; }
   .stage-col { order: 1; display: flex; flex-direction: column; }
@@ -205,4 +211,28 @@ dialog form { margin: 0; }
   #timeLabel { display: none; }
   .tabs { position: static; }
 }
+/* ---- touch screens: finger-sized controls, and no zoom-on-focus in iOS (needs 16px text) ---- */
+@media (pointer: coarse) {
+  .btn { height: 44px; }
+  .btn.sm { height: 40px; }
+  .btn.icon { width: 44px; }
+  .btn.big { height: 52px; }
+  .tool { height: 42px; min-width: 42px; justify-content: center; }
+  .tabs button { height: 46px; }
+  input[type=number], input[type=text], select, textarea { height: 42px; font-size: 16px; }
+  textarea { height: auto; min-height: 64px; }
+  input[type=color] { width: 44px; height: 38px; }
+  input[type=range] { height: 28px; }
+  input[type=checkbox] { width: 22px; height: 22px; }
+  .status .zoom .btn { height: 36px; width: 42px; }
+  .annolist li { padding: 10px; }
+  .row { gap: 10px; }
+}
+
+/* Portrait phones: keep the preview pinned while you scroll the controls below it. */
+@media (max-width: 900px) and (orientation: portrait) {
+  .stage-col { position: sticky; top: 0; z-index: 5; background: var(--bg); box-shadow: 0 8px 20px rgba(0,0,0,.45); }
+  .stage { height: min(40vh, 340px); }
+}
+
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
