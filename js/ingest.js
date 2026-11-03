@@ -41,6 +41,28 @@ export class Recorder {
     this.prev32 = null;
     this.startedAt = 0;
     this.busy = false;
+    // pausing: frames keep arriving but are dropped; `offset` removes the paused span from the timeline
+    this.paused = false;
+    this.lastRaw = null;     // timestamp of the latest frame seen (paused or not)
+    this.pauseRaw = null;    // ...as of the moment pause() was called
+    this.offset = 0;
+    this.resumePending = false;
+    this.pausedMs = 0;       // wall-clock time spent paused (for the on-screen timer)
+    this.pauseWall = 0;
+  }
+
+  pause() {
+    if (!this.armed || this.paused || this.finished) return;
+    this.paused = true;
+    this.pauseRaw = this.lastRaw;
+    this.pauseWall = performance.now();
+  }
+
+  resume() {
+    if (!this.paused || this.finished) return;
+    this.paused = false;
+    this.resumePending = true;
+    this.pausedMs += performance.now() - this.pauseWall;
   }
 
   /** Resolves true once recording is armed, false if cancelled. Throws if the picker is refused. */
@@ -70,7 +92,8 @@ export class Recorder {
     return {
       frames: this.frames.length,
       bytes: this.frames.length * this.W * this.H * 4,
-      elapsedMs: this.armed ? performance.now() - this.startedAt : 0,
+      paused: this.paused,
+      elapsedMs: this.armed ? (this.paused ? this.pauseWall : performance.now()) - this.startedAt - this.pausedMs : 0,
     };
   }
 
@@ -146,8 +169,14 @@ export class Recorder {
 
   async _onFrame(src, tsMs, sw, sh) {
     if (!this.armed || this.finished || this.busy) return;
+    this.lastRaw = tsMs;
+    if (this.paused) return;
     if (this.t0 === null) this.t0 = tsMs;
-    const t = tsMs - this.t0;
+    if (this.resumePending) {
+      this.resumePending = false;
+      if (this.pauseRaw !== null) this.offset += tsMs - this.pauseRaw; // the paused span never happened
+    }
+    const t = tsMs - this.t0 - this.offset;
     this.lastSeenT = t;
     if (this.lastKeptT !== null && t - this.lastKeptT < this.interval * 0.8) return; // over the fps cap
     if (!sw || !sh) return;

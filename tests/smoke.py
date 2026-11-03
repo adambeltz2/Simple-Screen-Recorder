@@ -321,7 +321,78 @@ async def t_addclip(b, url, tmp):
     await ctx.close()
 
 
-TESTS = {'core': t_core, 'export': t_export, 'persist': t_persist, 'edit': t_edit, 'addclip': t_addclip}
+FAKE_SCREEN = """
+navigator.mediaDevices.getDisplayMedia = async () => {
+  const c = document.createElement('canvas'); c.width = 800; c.height = 450;
+  const x = c.getContext('2d'); let t = 0;
+  const draw = () => { t++; x.fillStyle = 'hsl(' + (t * 6 % 360) + ',70%,45%)'; x.fillRect(0, 0, 800, 450); x.fillStyle = '#fff'; x.font = '90px sans-serif'; x.fillText(String(t), 60, 240); };
+  setInterval(draw, 16); draw();
+  return c.captureStream(30);
+};
+"""
+FAKE_PIP = """
+Object.defineProperty(window, 'documentPictureInPicture', { configurable: true, value: {
+  requestWindow: async () => { const w = window.open('about:blank', '_blank', 'popup,width=300,height=76'); window.__pip = w; return w; } } });
+"""
+
+
+async def start_recording(pg, fps='10', width='480', pip=False):
+    await pg.click('#btnRecord'); await pg.wait_for_selector('#recDlg[open]')
+    await pg.select_option('#recDelay', '0'); await pg.select_option('#recFps', fps); await pg.select_option('#recW', width)
+    await pg.uncheck('#recSkip')
+    if not pip and await pg.evaluate('!document.getElementById("recPipRow").hidden'):
+        await pg.uncheck('#recPip')
+    await pg.click('#recStart')
+    await pg.wait_for_function('document.getElementById("recMsg").textContent === "Recording"', timeout=10000)
+
+
+async def t_record(b, url, tmp):
+    ctx, pg, errs = await new_page(b, url)
+    await pg.add_init_script(FAKE_SCREEN)
+    await pg.reload()
+    has_pip = await pg.evaluate('"documentPictureInPicture" in window')
+    check('pip option is shown exactly when the browser supports it', (not await pg.evaluate('document.getElementById("recPipRow").hidden')) == has_pip)
+    await start_recording(pg)
+    await pg.wait_for_timeout(1200)
+    await pg.click('#recPause')
+    check('pause shows Paused / Resume', (await pg.inner_text('#recMsg')) == 'Paused' and (await pg.inner_text('#recPause')) == 'Resume')
+    c1 = await pg.inner_text('#recCount')
+    await pg.wait_for_timeout(2000)
+    c2 = await pg.inner_text('#recCount')
+    check('no frames captured while paused', c1 == c2, (c1, c2))
+    t_paused = await pg.inner_text('#recTime')
+    check('timer is frozen while paused', t_paused in ('0:01', '0:02'), t_paused)
+    await pg.click('#recPause')
+    await pg.wait_for_timeout(1200)
+    await pg.click('#recStop')
+    await pg.wait_for_function('window.__app.S.frames.length > 0', timeout=10000)
+    total = await pg.evaluate('__app.S.frames.reduce((a, f) => a + f.delay, 0)')
+    n = await pg.evaluate('__app.S.frames.length')
+    check('paused time is cut from the recording', 1800 <= total <= 3300, total)
+    check('plausible frame count', 15 <= n <= 30, n)
+    check('no console errors', not errs, errs[:3])
+    await ctx.close()
+
+    # ---- stub of Document Picture-in-Picture: buttons live in a second window
+    ctx, pg, errs = await new_page(b, url)
+    await pg.add_init_script(FAKE_SCREEN + FAKE_PIP)
+    await pg.reload()
+    check('pip row shown when supported', not await pg.evaluate('document.getElementById("recPipRow").hidden'))
+    await start_recording(pg, pip=True)
+    await pg.wait_for_function('window.__pip && window.__pip.document.querySelector("button.stop")', timeout=10000)
+    await pg.wait_for_timeout(600)
+    await pg.evaluate('__pip.document.querySelectorAll("button")[0].click()')  # Pause in the floating window
+    check('floating Pause pauses the recording', (await pg.inner_text('#recMsg')) == 'Paused')
+    await pg.evaluate('__pip.document.querySelectorAll("button")[0].click()')  # Resume
+    await pg.wait_for_timeout(500)
+    await pg.evaluate('__pip.document.querySelector("button.stop").click()')
+    await pg.wait_for_function('window.__app.S.frames.length > 0', timeout=10000)
+    check('floating window closes when recording ends', await pg.evaluate('window.__pip.closed'))
+    check('no console errors (pip)', not errs, errs[:3])
+    await ctx.close()
+
+
+TESTS = {'core': t_core, 'export': t_export, 'persist': t_persist, 'edit': t_edit, 'addclip': t_addclip, 'record': t_record}
 
 
 async def main():

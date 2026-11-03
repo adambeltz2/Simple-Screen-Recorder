@@ -316,13 +316,14 @@
   <span id="recMsg">Recording</span>
   <span id="recTime" class="mono">0:00</span>
   <span id="recCount" class="mono muted"></span>
+  <button id="recPause" class="btn sm" hidden>Pause</button>
   <button id="recStop" class="btn sm danger">Stop</button>
 </div>
 
 <dialog id="recDlg">
   <form method="dialog">
     <h2>Record screen</h2>
-    <p class="hint">You'll choose a screen, window or tab next. Recording keeps going while you work elsewhere; stop it here or with your browser's "Stop sharing" button.</p>
+    <p class="hint">You'll choose a screen, window or tab next. Recording keeps going while you work elsewhere; stop it here, from the floating window if your browser supports one, or with your browser's "Stop sharing" button.</p>
     <div class="form">
       <label>Frame rate
         <select id="recFps"><option value="8">8 fps</option><option value="10">10 fps</option><option value="12">12 fps</option><option value="15" selected>15 fps</option><option value="20">20 fps</option><option value="30">30 fps</option></select>
@@ -334,6 +335,7 @@
         <select id="recDelay"><option value="0">Right away</option><option value="3" selected>3 seconds</option><option value="5">5 seconds</option></select>
       </label>
       <label class="check"><input type="checkbox" id="recSkip" checked> Skip identical frames (saves memory)</label>
+      <label class="check" id="recPipRow" hidden><input type="checkbox" id="recPip" checked> Floating Stop / Pause window (stays on top)</label>
     </div>
     <div class="dlg-actions">
       <button value="cancel" class="btn">Cancel</button>
