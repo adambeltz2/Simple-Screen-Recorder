@@ -1,5 +1,7 @@
 # Simple Screen Recorder
 
+**Live app: https://adambeltz2.github.io/Simple-Screen-Recorder/**
+
 Record your screen (or open a video, GIF or animated WebP), edit it frame by frame, and export a **GIF** or **animated WebP**. It's a static site: everything runs in your browser and nothing is uploaded. No build step, no dependencies to install.
 
 ## Features
