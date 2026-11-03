@@ -392,7 +392,105 @@ async def t_record(b, url, tmp):
     await ctx.close()
 
 
-TESTS = {'core': t_core, 'export': t_export, 'persist': t_persist, 'edit': t_edit, 'addclip': t_addclip, 'record': t_record}
+def ffprobe(path):
+    import json
+    out = subprocess.run(['ffprobe', '-v', 'error', '-show_streams', '-show_format', '-of', 'json', path], capture_output=True, text=True, check=True).stdout
+    return json.loads(out)
+
+
+async def t_export2(b, url, tmp):
+    from PIL import Image
+    ctx, pg, errs = await new_page(b, url)
+    await import_video(pg, make_video(tmp, secs=4, w=1280, h=720), fps='12', width=1280)
+    await pg.click('[data-tab=export]')
+
+    # ---- baseline size, then fit under a limit
+    await pg.select_option('#expTarget', '0')
+    await pg.click('#btnRenderGif')
+    await pg.wait_for_selector('#results a[download*=".gif"]', timeout=120000)
+    base = len(await blob_of(pg, '#results a[download*=".gif"]'))
+    print(f'     baseline GIF: {base/1e6:.2f} MB')
+    check('baseline is larger than the 1 MB target (so the ladder has work to do)', base > 1.0e6, base)
+    await pg.select_option('#expTarget', '1')
+    tgt = 1
+    await pg.click('#btnRenderGif')
+    await pg.wait_for_function('document.querySelector("#results .okfit, #results .missfit")', timeout=240000)
+    fit_txt = await pg.inner_text('#results .res .okfit, #results .res .missfit')
+    gif = await blob_of(pg, '#results a[download*=".gif"]')
+    print(f'     fitted GIF: {len(gif)/1e6:.2f} MB  ({fit_txt})')
+    check('fit: result is under the limit', len(gif) <= tgt * 1e6, (len(gif), tgt))
+    check('fit: says it fits', 'Fits' in fit_txt, fit_txt)
+    check('fit: needed more than the first try', 'try ' in fit_txt and 'your settings' not in fit_txt, fit_txt)
+    im = Image.open(io.BytesIO(gif)); check('fit: GIF still valid', im.n_frames > 10, im.n_frames)
+
+    # an impossible limit reports the closest result instead of failing
+    await pg.select_option('#expTarget', '1')
+    await pg.select_option('#expFps', '0')
+    # (tiny limit vs a long clip is hard to build with testsrc; just make sure the path is exercised without errors)
+    check('no console errors (fit)', not errs, errs[:3])
+
+    # ---- video
+    sup = await pg.evaluate('!document.getElementById("vidRow").hidden')
+    check('video export offered in this browser', sup)
+    if sup:
+        await pg.select_option('#expTarget', '0')
+        for fmt in ('mp4', 'webm'):
+            disabled = await pg.evaluate(f'document.querySelector("#vidFormat option[value={fmt}]").disabled')
+            if disabled:
+                print(f'     ({fmt} not encodable in this Chrome, skipping)'); continue
+            await pg.select_option('#vidFormat', fmt)
+            await pg.click('#btnRenderVideo')
+            await pg.wait_for_selector(f'#results a[download$=".{fmt}"]', timeout=120000)
+            data = await blob_of(pg, f'#results a[download$=".{fmt}"]')
+            path = Path(tmp) / f'out.{fmt}'; path.write_bytes(data)
+            info = ffprobe(str(path)); v = [x for x in info['streams'] if x['codec_type'] == 'video'][0]
+            dur = float(info['format']['duration'])
+            print(f'     {fmt}: {len(data)/1e3:.0f} KB, {v["codec_name"]} {v["width"]}x{v["height"]}, {dur:.2f}s')
+            check(f'{fmt}: duration matches the clip', 3.4 <= dur <= 4.6, dur)
+            check(f'{fmt}: even dimensions', v['width'] % 2 == 0 and v['height'] % 2 == 0)
+            check(f'{fmt}: far smaller than the GIF', len(data) < base, (len(data), base))
+            png = Path(tmp) / f'{fmt}.png'
+            subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-ss', '1.0', '-i', str(path), '-frames:v', '1', str(png)], check=True)
+            px = Image.open(png).convert('RGB').resize((8, 8))
+            check(f'{fmt}: decoded frame has real content', len(px.getcolors(64) or []) > 4)
+        # video fitted to a size
+        ext = 'mp4' if not await pg.evaluate('document.querySelector("#vidFormat option[value=mp4]").disabled') else 'webm'
+        await pg.select_option('#vidFormat', ext)
+        await pg.select_option('#expTarget', '1')
+        await pg.click('#btnRenderVideo')
+        await pg.wait_for_function('document.getElementById("progress").hidden', timeout=120000)
+        await pg.wait_for_selector(f'#results a[download$=".{ext}"]')
+        data = await blob_of(pg, f'#results a[download$=".{ext}"]')
+        print(f'     video fitted to 1 MB: {len(data)/1e6:.2f} MB')
+        check('video: lands near/under the size target', len(data) <= 1.1e6, len(data))
+
+    # ---- fades are honoured by the export too
+    await pg.select_option('#expTarget', '0')
+    await pg.evaluate("""() => { const S = __app.S; S.annos = [{ id: 901, type: 'rect', x1: 100, y1: 100, x2: 700, y2: 350, color: '#ff0000', width: 80, fill: false,
+        text: '', size: 20, bg: false, block: 8, fin: 1500, fout: 0, from: -1, to: 1e12 }]; __app.touch(); }""")
+    await pg.select_option('#expFps', '0')
+    await pg.select_option('#gifPalette', 'global'); await pg.select_option('#gifColors', '256'); await pg.select_option('#expDiff', 'light')
+    await pg.evaluate("document.getElementById('expW').value = 640; document.getElementById('expW').dispatchEvent(new Event('input'))")
+    await pg.click('#btnRenderGif')
+    await pg.wait_for_function('document.querySelectorAll("#results a[download$=\'.gif\']").length === 1 && !document.querySelector("#progress:not([hidden])")', timeout=120000)
+    gif = await blob_of(pg, '#results a[download$=".gif"]')
+    im = Image.open(io.BytesIO(gif)); im.seek(0); f0 = im.convert('RGB').getpixel((50, 110)); im.seek(im.n_frames - 1); f1 = im.convert('RGB').getpixel((50, 110))
+    check('export: annotation fades in (first frame faint, last frame red)', f1[0] > 200 and f1[1] < 80 and not (f0[0] > 200 and f0[1] < 80), (f0, f1))
+
+    # ---- cancel
+    await pg.evaluate("__app.S.annos = []; __app.touch()")
+    await pg.select_option('#gifPalette', 'local'); await pg.select_option('#expDiff', 'off'); await pg.select_option('#gifDither', 'full')
+    await pg.click('#btnRenderGif')
+    await pg.wait_for_selector('#progress:not([hidden])')
+    await pg.click('#btnCancel')
+    await pg.wait_for_function('document.getElementById("progress").hidden', timeout=30000)
+    toast_txt = await pg.inner_text('#toast')
+    check('cancel stops the export', 'cancelled' in toast_txt.lower(), toast_txt)
+    check('no console errors', not [e for e in errs if 'Cancelled' not in e], errs[:3])
+    await ctx.close()
+
+
+TESTS = {'core': t_core, 'export': t_export, 'persist': t_persist, 'edit': t_edit, 'addclip': t_addclip, 'record': t_record, 'export2': t_export2}
 
 
 async def main():

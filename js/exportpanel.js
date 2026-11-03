@@ -1,8 +1,9 @@
 // Export tab: settings, rendering, results.
 
 import { S, touch } from './state.js';
-import { renderExport, cropRegion, outputDims, resampleFrames, webpSupported } from './exporter.js';
-import { $, $$, fmtTime, fmtBytes, toast } from './ui.js';
+import { renderExport, renderFit, cropRegion, outputDims, resampleFrames, webpSupported } from './exporter.js';
+import { renderVideo, videoSupport } from './video.js';
+import { $, $$, fmtTime, fmtBytes, esc, toast } from './ui.js';
 import { stopPlayback } from './transport.js';
 
 // ===========================================================================
@@ -11,7 +12,7 @@ import { stopPlayback } from './transport.js';
 
 const STORE_KEY = 'ssr.export.v1';
 const saved = (() => { try { return JSON.parse(localStorage.getItem(STORE_KEY) || '{}'); } catch { return {}; } })();
-const EXPORT_FIELDS = ['expFps', 'expLoop', 'expBg', 'expDiff', 'gifColors', 'gifDither', 'gifPalette', 'webpQuality', 'webpLossless'];
+const EXPORT_FIELDS = ['expFps', 'expLoop', 'expBg', 'expDiff', 'gifColors', 'gifDither', 'gifPalette', 'webpQuality', 'webpLossless', 'expTarget', 'vidFormat', 'vidQuality'];
 EXPORT_FIELDS.forEach((id) => {
   const el = $(id);
   if (saved[id] !== undefined) { if (el.type === 'checkbox') el.checked = !!saved[id]; else el.value = saved[id]; }
@@ -55,9 +56,21 @@ webpSupported().then((ok) => {
   $('webpWarn').hidden = ok;
 });
 
-export const results = { version: -1, gif: null, webp: null };
+let vidOK = false;
+videoSupport().then((sup) => {
+  vidOK = sup.mp4 || sup.webm;
+  $('vidGroup').hidden = $('vidRow').hidden = !vidOK;
+  [['mp4', sup.mp4], ['webm', sup.webm]].forEach(([v, ok]) => {
+    const o = $('vidFormat').querySelector(`option[value=${v}]`);
+    o.disabled = !ok;
+  });
+  if (!sup[$('vidFormat').value]) $('vidFormat').value = sup.mp4 ? 'mp4' : 'webm';
+});
+
+const KINDS = ['gif', 'webp', 'video'];
+export const results = { version: -1, gif: null, webp: null, video: null };
 export function clearResults() {
-  ['gif', 'webp'].forEach((k) => { if (results[k]) URL.revokeObjectURL(results[k].url); results[k] = null; });
+  KINDS.forEach((k) => { if (results[k]) URL.revokeObjectURL(results[k].url); results[k] = null; });
   results.version = -1;
   renderResults();
 }
@@ -70,15 +83,21 @@ function stamp() {
 function renderResults() {
   const box = $('results');
   box.innerHTML = '';
-  const have = ['gif', 'webp'].filter((k) => results[k]);
+  const have = KINDS.filter((k) => results[k]);
   have.forEach((k) => {
     const r = results[k];
-    const name = `screen-${r.stamp}.${k}`;
+    const ext = k === 'video' ? r.ext : k;
+    const name = `screen-${r.stamp}.${ext}`;
     const card = document.createElement('div');
     card.className = 'res';
-    card.innerHTML = `<header><b>${k.toUpperCase()}</b><span class="mono">${fmtBytes(r.blob.size)}</span></header>
-      <img alt="${k} preview" src="${r.url}">
-      <div class="meta">${r.w}×${r.h} · ${r.frames} frames · encoded in ${(r.ms / 1000).toFixed(1)}s${r.where === 'main' ? ' (main thread)' : ''}</div>
+    const media = k === 'video'
+      ? `<video src="${r.url}" controls loop muted playsinline></video>`
+      : `<img alt="${k} preview" src="${r.url}">`;
+    const fit = r.fit ? `<div class="meta ${r.fit.reached ? 'okfit' : 'missfit'}">${r.fit.reached ? 'Fits' : 'Closest to'} ${fmtBytes(r.fit.target)}: ${esc(r.fit.label)}${r.fit.attempt > 1 ? ` (try ${r.fit.attempt})` : ''}</div>` : '';
+    const how = k === 'video' ? `${r.codec} · ${Math.round(r.bitrate / 1000)} kbps` : `${r.frames} frames`;
+    card.innerHTML = `<header><b>${ext.toUpperCase()}</b><span class="mono">${fmtBytes(r.blob.size)}</span></header>
+      ${media}
+      <div class="meta">${r.w}×${r.h} · ${how} · encoded in ${(r.ms / 1000).toFixed(1)}s${r.where === 'main' ? ' (main thread)' : ''}</div>${fit}
       <div class="acts"><a class="btn primary" download="${name}" href="${r.url}">Download</a></div>`;
     const file = new File([r.blob], name, { type: r.blob.type });
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
@@ -90,7 +109,7 @@ function renderResults() {
     }
     box.appendChild(card);
   });
-  if (have.length === 2) {
+  if (results.gif && results.webp) {
     const g = results.gif.blob.size, w = results.webp.blob.size;
     const p = document.createElement('div');
     p.className = 'cmp';
@@ -109,31 +128,51 @@ function readSettings(format) {
     bg: $('expBg').value,
     gif: { colors: +$('gifColors').value, dither: $('gifDither').value, palette: $('gifPalette').value },
     webp: { quality: +$('webpQuality').value, lossless: $('webpLossless').checked },
+    vid: { format: $('vidFormat').value, quality: $('vidQuality').value },
   };
 }
 
 let exportAbort = null;
+
+/** Target size in bytes, with a little headroom so "under 10 MB" really is. */
+const targetBytes = () => Math.round((+$('expTarget').value || 0) * 1e6 * 0.95);
+
 async function runRender(format) {
   if (!S.frames.length || exportAbort) return;
   if (format === 'webp' && !webpOK) return toast("This browser can't encode WebP.", true);
+  if (format === 'video' && !vidOK) return toast("This browser can't encode video.", true);
   stopPlayback();
   exportAbort = new AbortController();
-  const label = format.toUpperCase();
-  $('btnRenderGif').disabled = $('btnRenderWebp').disabled = true;
+  const label = format === 'video' ? $('vidFormat').value.toUpperCase() : format.toUpperCase();
+  const buttons = ['btnRenderGif', 'btnRenderWebp', 'btnRenderVideo'].map($);
+  buttons.forEach((b) => { b.disabled = true; });
   $('progress').hidden = false;
   $('progBar').style.width = '0';
   $('progText').textContent = `Preparing ${label}…`;
   const version = S.version;
+  const target = targetBytes();
+  const started = performance.now();
+  let attempt = '';
+  const onProgress = (p) => {
+    $('progBar').style.width = `${Math.round(p * 100)}%`;
+    const el = (performance.now() - started) / 1000;
+    const eta = !attempt && p > 0.08 ? ` · about ${Math.max(1, Math.round((el * (1 - p)) / p))} s left` : '';
+    $('progText').textContent = `${attempt || 'Encoding'} ${label}… ${Math.round(p * 100)}%${eta}`.trim();
+  };
+  const hooks = { signal: exportAbort.signal, onProgress };
   try {
-    const r = await renderExport(S, readSettings(format), {
-      signal: exportAbort.signal,
-      onProgress: (p) => { $('progBar').style.width = `${Math.round(p * 100)}%`; $('progText').textContent = `Encoding ${label}… ${Math.round(p * 100)}%`; },
-    });
+    const X = readSettings(format === 'video' ? 'gif' : format);
+    let r;
+    if (format === 'video') r = await renderVideo(S, X, { ...hooks, target });
+    else if (target) {
+      r = await renderFit(S, X, target, { ...hooks, onAttempt: ({ i, n, label: l }) => { attempt = `Fitting ${fmtBytes(target)}: try ${i + 1}/${n} (${l}) ·`; } });
+    } else r = await renderExport(S, X, hooks);
     if (version !== S.version) { toast('The project changed while rendering, so the result was dropped.'); return; }
     if (results.version !== version) { clearResults(); results.version = version; }
     if (results[format]) URL.revokeObjectURL(results[format].url);
     results[format] = { ...r, url: URL.createObjectURL(r.blob), stamp: stamp() };
     renderResults();
+    if (r.fit && !r.fit.reached) toast(`Couldn't get under ${fmtBytes(r.fit.target)}; this is the smallest it got. Try a shorter clip or a smaller width.`, true);
     $('results').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   } catch (e) {
     if (e && e.name === 'AbortError') toast('Export cancelled');
@@ -143,8 +182,10 @@ async function runRender(format) {
     $('progress').hidden = true;
     $('btnRenderGif').disabled = false;
     $('btnRenderWebp').disabled = !webpOK;
+    $('btnRenderVideo').disabled = !vidOK;
   }
 }
 $('btnRenderGif').onclick = () => runRender('gif');
+$('btnRenderVideo').onclick = () => runRender('video');
 $('btnRenderWebp').onclick = () => runRender('webp');
 $('btnCancel').onclick = () => { if (exportAbort) exportAbort.abort(); };

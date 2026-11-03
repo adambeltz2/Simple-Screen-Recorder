@@ -14,6 +14,7 @@ self.onmessage = (e) => {
       else if (op === 'sample') enc.addSample(new Uint8ClampedArray(args.buf));
       else if (op === 'palette') await enc.buildPalette();
       else if (op === 'frame') await enc.addFrame(new Uint8ClampedArray(args.buf), args.delay);
+      else if (op === 'size') result = enc.size();
       else if (op === 'finish') result = await enc.finish();
       self.postMessage({ id, ok: true, result });
     } catch (err) {

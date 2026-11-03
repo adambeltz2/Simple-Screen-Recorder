@@ -70,6 +70,7 @@ function workerEncoder() {
     sample: (buf) => call('sample', { buf }, [buf]),
     palette: () => call('palette', {}),
     frame: (buf, delay) => call('frame', { buf, delay }, [buf]),
+    size: () => call('size', {}),
     finish: () => call('finish', {}),
     terminate: () => worker.terminate(),
   };
@@ -84,6 +85,7 @@ async function localEncoder() {
     sample: (buf) => e.addSample(new Uint8ClampedArray(buf)),
     palette: () => e.buildPalette(),
     frame: (buf, delay) => e.addFrame(new Uint8ClampedArray(buf), delay),
+    size: () => e.size(),
     finish: () => e.finish(),
     terminate: () => {},
   };
@@ -101,11 +103,18 @@ async function makeEncoder(cfg) {
 
 // ---- main entry --------------------------------------------------------------
 
+/** Thrown by renderExport when an attempt is clearly heading past its size budget. */
+export class OverBudget extends Error {
+  constructor(estimate) { super('Over the size budget'); this.name = 'OverBudget'; this.estimate = estimate; }
+}
+
 /**
  * X: { format:'gif'|'webp', width, fps, diff:'off'|..., loop, bg,
  *      gif:{colors,dither,palette}, webp:{quality,lossless} }
+ * budget (bytes, optional): give up early, with OverBudget, once a quarter or
+ * more of the frames are in and the projected size is well past the budget.
  */
-export async function renderExport(S, X, { onProgress, signal } = {}) {
+export async function renderExport(S, X, { onProgress, signal, budget = 0 } = {}) {
   const t0 = performance.now();
   const region = cropRegion(S);
   const { w, h } = outputDims(S, X.width);
@@ -151,6 +160,12 @@ export async function renderExport(S, X, { onProgress, signal } = {}) {
       check();
       inflight.push(enc.frame(grab(item.frame, li), Math.max(10, Math.round(item.delay))));
       if (inflight.length >= 3) await inflight.shift(); // keep a few frames in flight, no more
+      if (budget && li % 4 === 3 && li >= list.length * 0.25) {
+        await Promise.all(inflight.splice(0));
+        const so_far = await enc.size();
+        const projected = (so_far * list.length) / (li + 1);
+        if (projected > budget * 1.5) throw new OverBudget(projected);
+      }
       onProgress && onProgress(++done / total);
       if (enc.kind === 'main') await tick();
     }
@@ -171,4 +186,64 @@ export async function webpSupported() {
     const blob = await new Promise((res) => c.toBlob(res, 'image/webp', 0.8));
     return !!blob && blob.type === 'image/webp';
   } catch { return false; }
+}
+
+
+// ---- fit under a size limit -------------------------------------------------------
+
+const DIFF_ORDER = ['off', 'exact', 'light', 'medium'];
+const atLeast = (cur, want) => (DIFF_ORDER.indexOf(cur) >= DIFF_ORDER.indexOf(want) ? cur : want);
+const capFps = (cur, n) => (!cur || cur > n ? n : cur);
+const capNum = (cur, n) => Math.min(cur, n);
+
+/**
+ * Settings to try, from "what you asked for" down to small and rough. Each
+ * step trades a bit more quality for size: colours/quality first, then
+ * frame rate and width.
+ */
+export function fitLadder(X) {
+  const steps = [{ label: 'your settings', f: (x) => x }];
+  const scaled = (x, k) => ({ ...x, width: Math.max(16, Math.round(x.width * k)) });
+  if (X.format === 'gif') {
+    steps.push({ label: '128 colours', f: (x) => ({ ...x, diff: atLeast(x.diff, 'light'), gif: { ...x.gif, colors: capNum(x.gif.colors, 128) } }) });
+    steps.push({ label: 'stronger change detection', f: (x) => ({ ...x, diff: 'medium', gif: { ...x.gif, colors: capNum(x.gif.colors, 128), palette: 'global' } }) });
+    steps.push({ label: '85% size, 15 fps', f: (x) => scaled({ ...x, fps: capFps(x.fps, 15), diff: 'medium', gif: { ...x.gif, colors: capNum(x.gif.colors, 128), palette: 'global' } }, 0.85) });
+    steps.push({ label: '70% size, 12 fps, 64 colours', f: (x) => scaled({ ...x, fps: capFps(x.fps, 12), diff: 'medium', gif: { ...x.gif, colors: 64, palette: 'global' } }, 0.7) });
+    steps.push({ label: '55% size, 10 fps', f: (x) => scaled({ ...x, fps: capFps(x.fps, 10), diff: 'medium', gif: { ...x.gif, colors: 64, dither: 'none', palette: 'global' } }, 0.55) });
+    steps.push({ label: '40% size, 8 fps, 32 colours', f: (x) => scaled({ ...x, fps: capFps(x.fps, 8), diff: 'medium', gif: { ...x.gif, colors: 32, dither: 'none', palette: 'global' } }, 0.4) });
+    steps.push({ label: '30% size, 6 fps, 16 colours', f: (x) => scaled({ ...x, fps: capFps(x.fps, 6), diff: 'medium', gif: { ...x.gif, colors: 16, dither: 'none', palette: 'global' } }, 0.3) });
+  } else {
+    const q = (x, n) => ({ ...x.webp, lossless: false, quality: Math.min(x.webp.lossless ? 100 : x.webp.quality, n) });
+    steps.push({ label: 'quality 70', f: (x) => ({ ...x, diff: atLeast(x.diff, 'light'), webp: q(x, 70) }) });
+    steps.push({ label: 'quality 55', f: (x) => ({ ...x, diff: 'medium', webp: q(x, 55) }) });
+    steps.push({ label: '85% size, 15 fps, quality 50', f: (x) => scaled({ ...x, fps: capFps(x.fps, 15), diff: 'medium', webp: q(x, 50) }, 0.85) });
+    steps.push({ label: '70% size, 12 fps, quality 40', f: (x) => scaled({ ...x, fps: capFps(x.fps, 12), diff: 'medium', webp: q(x, 40) }, 0.7) });
+    steps.push({ label: '55% size, 10 fps, quality 35', f: (x) => scaled({ ...x, fps: capFps(x.fps, 10), diff: 'medium', webp: q(x, 35) }, 0.55) });
+    steps.push({ label: '40% size, 8 fps, quality 30', f: (x) => scaled({ ...x, fps: capFps(x.fps, 8), diff: 'medium', webp: q(x, 30) }, 0.4) });
+  }
+  return steps.map((st) => ({ label: st.label, X: st.f(X) }));
+}
+
+/**
+ * Try progressively smaller settings until the file fits `target` bytes.
+ * onAttempt({ i, n, label }) is called before each try. If nothing fits, the
+ * smallest finished result is returned with fit.reached = false.
+ */
+export async function renderFit(S, X, target, { onProgress, onAttempt, signal } = {}) {
+  const ladder = fitLadder(X);
+  let best = null;
+  for (let i = 0; i < ladder.length; i++) {
+    const last = i === ladder.length - 1;
+    onAttempt && onAttempt({ i, n: ladder.length, label: ladder[i].label });
+    try {
+      const r = await renderExport(S, ladder[i].X, { onProgress, signal, budget: last && !best ? 0 : target });
+      const fit = { target, attempt: i + 1, attempts: ladder.length, label: ladder[i].label, reached: r.blob.size <= target };
+      if (fit.reached) return { ...r, fit };
+      if (!best || r.blob.size < best.blob.size) best = { ...r, fit };
+    } catch (e) {
+      if (!(e instanceof OverBudget)) throw e;
+    }
+  }
+  if (best) return best;
+  throw new Error('Could not produce a result');
 }

@@ -247,6 +247,20 @@
       </div>
 
       <div class="group">
+        <h3>Fit under a size limit</h3>
+        <div class="row">
+          <label class="grow">Aim for
+            <select id="expTarget">
+              <option value="0" selected>No limit</option>
+              <option value="1">1 MB</option><option value="2">2 MB</option><option value="5">5 MB</option>
+              <option value="8">8 MB</option><option value="10">10 MB</option><option value="25">25 MB</option>
+            </select>
+          </label>
+        </div>
+        <p class="hint">Tries your settings first, then lowers colours, quality, frame rate and size step by step until the file fits. For video it sets the bitrate.</p>
+      </div>
+
+      <div class="group">
         <h3>Smaller files</h3>
         <div class="row">
           <label class="grow">Only store what changes
@@ -289,11 +303,27 @@
         <p class="hint" id="webpWarn" hidden>This browser can't encode WebP. Use Chrome, Edge or Firefox.</p>
       </div>
 
+      <div class="group" id="vidGroup" hidden>
+        <h3>Video options</h3>
+        <div class="row">
+          <label class="grow">Format
+            <select id="vidFormat"><option value="mp4">MP4 (plays everywhere)</option><option value="webm">WebM</option></select>
+          </label>
+          <label class="grow">Quality
+            <select id="vidQuality"><option value="low">Low</option><option value="medium" selected>Medium</option><option value="high">High</option></select>
+          </label>
+        </div>
+        <p class="hint">Video can't loop by itself; most chat apps and sites loop short clips for you. No sound is recorded.</p>
+      </div>
+
       <div class="group">
         <div id="expSummary" class="summary mono"></div>
         <div class="row">
           <button id="btnRenderGif" class="btn primary grow">Render GIF</button>
           <button id="btnRenderWebp" class="btn primary grow">Render WebP</button>
+        </div>
+        <div class="row" id="vidRow" hidden>
+          <button id="btnRenderVideo" class="btn primary grow">Render video</button>
         </div>
         <div id="progress" hidden>
           <div class="bar"><i id="progBar"></i></div>
