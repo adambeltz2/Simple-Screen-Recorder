@@ -9,7 +9,9 @@ const CACHE = 'ssr-app-v1';
 const SHARE_CACHE = 'ssr-share';
 const ASSETS = [
   './', 'index.html', 'style.css', 'manifest.webmanifest', 'encoder-worker.js',
-  'js/main.js', 'js/state.js', 'js/render.js', 'js/ops.js', 'js/ingest.js', 'js/exporter.js',
+  'js/main.js', 'js/ui.js', 'js/state.js', 'js/render.js', 'js/ops.js', 'js/ingest.js', 'js/exporter.js',
+  'js/stage.js', 'js/timeline.js', 'js/transport.js', 'js/panels.js', 'js/editpanel.js', 'js/annopanel.js',
+  'js/project.js', 'js/recording.js', 'js/importer.js', 'js/exportpanel.js',
   'lib/encoders.js', 'lib/webpmux.js',
   'lib/gifenc/index.js', 'lib/gifenc/constants.js', 'lib/gifenc/lzwEncode.js', 'lib/gifenc/stream.js',
   'lib/gifenc/pnnquant2.js', 'lib/gifenc/palettize.js', 'lib/gifenc/color.js', 'lib/gifenc/rgb-packing.js',
