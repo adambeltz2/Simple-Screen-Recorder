@@ -2,7 +2,6 @@
 
 import { S, touch } from './state.js';
 import { renderExport, renderFit, cropRegion, outputDims, resampleFrames, webpSupported } from './exporter.js';
-import { renderVideo, videoSupport } from './video.js';
 import { $, $$, fmtTime, fmtBytes, esc, toast } from './ui.js';
 import { stopPlayback } from './transport.js';
 
@@ -12,7 +11,7 @@ import { stopPlayback } from './transport.js';
 
 const STORE_KEY = 'ssr.export.v1';
 const saved = (() => { try { return JSON.parse(localStorage.getItem(STORE_KEY) || '{}'); } catch { return {}; } })();
-const EXPORT_FIELDS = ['expFps', 'expLoop', 'expBg', 'expDiff', 'gifColors', 'gifDither', 'gifPalette', 'webpQuality', 'webpLossless', 'expTarget', 'vidFormat', 'vidQuality'];
+const EXPORT_FIELDS = ['expFps', 'expLoop', 'expBg', 'expDiff', 'gifColors', 'gifDither', 'gifPalette', 'webpQuality', 'webpLossless', 'expTarget'];
 EXPORT_FIELDS.forEach((id) => {
   const el = $(id);
   if (saved[id] !== undefined) { if (el.type === 'checkbox') el.checked = !!saved[id]; else el.value = saved[id]; }
@@ -56,19 +55,8 @@ webpSupported().then((ok) => {
   $('webpWarn').hidden = ok;
 });
 
-let vidOK = false;
-videoSupport().then((sup) => {
-  vidOK = sup.mp4 || sup.webm;
-  $('vidGroup').hidden = $('vidRow').hidden = !vidOK;
-  [['mp4', sup.mp4], ['webm', sup.webm]].forEach(([v, ok]) => {
-    const o = $('vidFormat').querySelector(`option[value=${v}]`);
-    o.disabled = !ok;
-  });
-  if (!sup[$('vidFormat').value]) $('vidFormat').value = sup.mp4 ? 'mp4' : 'webm';
-});
-
-const KINDS = ['gif', 'webp', 'video'];
-export const results = { version: -1, gif: null, webp: null, video: null };
+const KINDS = ['gif', 'webp'];
+export const results = { version: -1, gif: null, webp: null };
 export function clearResults() {
   KINDS.forEach((k) => { if (results[k]) URL.revokeObjectURL(results[k].url); results[k] = null; });
   results.version = -1;
@@ -86,15 +74,13 @@ function renderResults() {
   const have = KINDS.filter((k) => results[k]);
   have.forEach((k) => {
     const r = results[k];
-    const ext = k === 'video' ? r.ext : k;
+    const ext = k;
     const name = `screen-${r.stamp}.${ext}`;
     const card = document.createElement('div');
     card.className = 'res';
-    const media = k === 'video'
-      ? `<video src="${r.url}" controls loop muted playsinline></video>`
-      : `<img alt="${k} preview" src="${r.url}">`;
+    const media = `<img alt="${k} preview" src="${r.url}">`;
     const fit = r.fit ? `<div class="meta ${r.fit.reached ? 'okfit' : 'missfit'}">${r.fit.reached ? 'Fits' : 'Closest to'} ${fmtBytes(r.fit.target)}: ${esc(r.fit.label)}${r.fit.attempt > 1 ? ` (try ${r.fit.attempt})` : ''}</div>` : '';
-    const how = k === 'video' ? `${r.codec} · ${Math.round(r.bitrate / 1000)} kbps` : `${r.frames} frames`;
+    const how = `${r.frames} frames`;
     card.innerHTML = `<header><b>${ext.toUpperCase()}</b><span class="mono">${fmtBytes(r.blob.size)}</span></header>
       ${media}
       <div class="meta">${r.w}×${r.h} · ${how} · encoded in ${(r.ms / 1000).toFixed(1)}s${r.where === 'main' ? ' (main thread)' : ''}</div>${fit}
@@ -128,7 +114,6 @@ function readSettings(format) {
     bg: $('expBg').value,
     gif: { colors: +$('gifColors').value, dither: $('gifDither').value, palette: $('gifPalette').value },
     webp: { quality: +$('webpQuality').value, lossless: $('webpLossless').checked },
-    vid: { format: $('vidFormat').value, quality: $('vidQuality').value },
   };
 }
 
@@ -140,11 +125,10 @@ const targetBytes = () => Math.round((+$('expTarget').value || 0) * 1e6 * 0.95);
 async function runRender(format) {
   if (!S.frames.length || exportAbort) return;
   if (format === 'webp' && !webpOK) return toast("This browser can't encode WebP.", true);
-  if (format === 'video' && !vidOK) return toast("This browser can't encode video.", true);
   stopPlayback();
   exportAbort = new AbortController();
-  const label = format === 'video' ? $('vidFormat').value.toUpperCase() : format.toUpperCase();
-  const buttons = ['btnRenderGif', 'btnRenderWebp', 'btnRenderVideo'].map($);
+  const label = format.toUpperCase();
+  const buttons = ['btnRenderGif', 'btnRenderWebp'].map($);
   buttons.forEach((b) => { b.disabled = true; });
   $('progress').hidden = false;
   $('progBar').style.width = '0';
@@ -161,10 +145,9 @@ async function runRender(format) {
   };
   const hooks = { signal: exportAbort.signal, onProgress };
   try {
-    const X = readSettings(format === 'video' ? 'gif' : format);
+    const X = readSettings(format);
     let r;
-    if (format === 'video') r = await renderVideo(S, X, { ...hooks, target });
-    else if (target) {
+    if (target) {
       r = await renderFit(S, X, target, { ...hooks, onAttempt: ({ i, n, label: l }) => { attempt = `Fitting ${fmtBytes(target)}: try ${i + 1}/${n} (${l}) ·`; } });
     } else r = await renderExport(S, X, hooks);
     if (version !== S.version) { toast('The project changed while rendering, so the result was dropped.'); return; }
@@ -182,10 +165,8 @@ async function runRender(format) {
     $('progress').hidden = true;
     $('btnRenderGif').disabled = false;
     $('btnRenderWebp').disabled = !webpOK;
-    $('btnRenderVideo').disabled = !vidOK;
   }
 }
 $('btnRenderGif').onclick = () => runRender('gif');
-$('btnRenderVideo').onclick = () => runRender('video');
 $('btnRenderWebp').onclick = () => runRender('webp');
 $('btnCancel').onclick = () => { if (exportAbort) exportAbort.abort(); };

@@ -31,7 +31,7 @@ export function syncPanels() {
   $('btnRedo').disabled = !canRedo();
   $('selInfo').textContent = n ? (hi > lo ? `${lo + 1}–${hi + 1} · ${hi - lo + 1} frames` : `frame ${lo + 1}`) : '';
   $$('.pane .btn, #btnExportTop, #btnNew').forEach((b) => {
-    if (b.id === 'btnRenderGif' || b.id === 'btnRenderWebp' || b.id === 'btnRenderVideo' || b.id === 'btnCancel' || b.id === 'opDedupe') return;
+    if (b.id === 'btnRenderGif' || b.id === 'btnRenderWebp' || b.id === 'btnCancel' || b.id === 'opDedupe') return;
     if (b.closest('#results')) return;
     b.disabled = !n && b.id !== 'btnNew';
   });

@@ -30,7 +30,6 @@ Record your screen (or open a video, GIF or animated WebP), edit it frame by fra
 - Animated WebP: lossy with a quality slider, or lossless.
 - "Only store what changes" (on by default) stores just the region that changed between frames. For screen recordings this is usually the biggest size win.
 - **Fit under a size limit** (1 to 25 MB): tries your settings, then steps down colours, quality, frame rate and size until the file fits.
-- **MP4 or WebM video** (where the browser can encode it): usually many times smaller than a GIF for long clips.
 - A time-remaining estimate and a Cancel button while rendering.
 - Render several formats and compare sizes side by side before downloading. Share button on phones.
 
@@ -90,21 +89,17 @@ js/render.js          drawing frames and annotations (shared by preview and expo
 js/ops.js             frame operations (trim, speed, reverse, merge…)
 js/ingest.js          screen recording, video and GIF/WebP import
 js/exporter.js        GIF/WebP export pipeline, fit-to-size
-js/video.js           MP4/WebM export (WebCodecs)
 tests/smoke.py        end-to-end tests in real Chrome
 encoder-worker.js     runs the encoders off the main thread
 lib/encoders.js       GIF + WebP encoders with changed-region storage
 lib/webpmux.js        animated-WebP muxer (browsers can't encode animations natively)
 lib/gifenc/           vendored GIF encoder (see below)
-lib/muxers/           vendored MP4 and WebM muxers (see below)
 sw.js, manifest.webmanifest, icons/   offline + install + share target
 ```
 
 ## Third-party code
 
 `lib/gifenc/` is [gifenc](https://github.com/mattdesl/gifenc) by Matt DesLauriers (MIT, license included). It has one local patch: `left`/`top` options on `writeFrame` so frames can be stored as sub-rectangles.
-
-`lib/muxers/` holds [mp4-muxer](https://github.com/Vanilagy/mp4-muxer) and [webm-muxer](https://github.com/Vanilagy/webm-muxer) by Vanilagy (MIT, licences included, unmodified). They only write the container; the video itself is encoded by your browser.
 
 ## Keyboard
 
@@ -119,5 +114,4 @@ Space play/pause · ← → step (Shift extends the selection) · Home/End · De
 - Screen capture always goes through the browser's own picker; the page can't choose a source for you.
 - Click and keystroke overlays aren't possible (browsers don't expose that), but the **Spot** annotation can mark clicks by hand.
 - GIF can't go below 20 ms per frame, so very fast recordings are capped at about 50 fps.
-- Video export has no sound and can't carry a loop flag. Chat apps and websites usually loop short clips themselves.
 - Autosave stores your frames in the browser's own storage. Clearing site data removes them, and a very long recording may exceed the storage the browser allows (the status bar says when autosave stops).

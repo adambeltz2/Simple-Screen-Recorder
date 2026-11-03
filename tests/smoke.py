@@ -436,40 +436,8 @@ async def t_export2(b, url, tmp):
     # (tiny limit vs a long clip is hard to build with testsrc; just make sure the path is exercised without errors)
     check('no console errors (fit)', not errs, errs[:3])
 
-    # ---- video
-    sup = await pg.evaluate('!document.getElementById("vidRow").hidden')
-    check('video export offered in this browser', sup)
-    if sup:
-        await pg.select_option('#expTarget', '0')
-        for fmt in ('mp4', 'webm'):
-            disabled = await pg.evaluate(f'document.querySelector("#vidFormat option[value={fmt}]").disabled')
-            if disabled:
-                print(f'     ({fmt} not encodable in this Chrome, skipping)'); continue
-            await pg.select_option('#vidFormat', fmt)
-            await pg.click('#btnRenderVideo')
-            await pg.wait_for_selector(f'#results a[download$=".{fmt}"]', timeout=120000)
-            data = await blob_of(pg, f'#results a[download$=".{fmt}"]')
-            path = Path(tmp) / f'out.{fmt}'; path.write_bytes(data)
-            info = ffprobe(str(path)); v = [x for x in info['streams'] if x['codec_type'] == 'video'][0]
-            dur = float(info['format']['duration'])
-            print(f'     {fmt}: {len(data)/1e3:.0f} KB, {v["codec_name"]} {v["width"]}x{v["height"]}, {dur:.2f}s')
-            check(f'{fmt}: duration matches the clip', 3.4 <= dur <= 4.6, dur)
-            check(f'{fmt}: even dimensions', v['width'] % 2 == 0 and v['height'] % 2 == 0)
-            check(f'{fmt}: far smaller than the GIF', len(data) < base, (len(data), base))
-            png = Path(tmp) / f'{fmt}.png'
-            subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-ss', '1.0', '-i', str(path), '-frames:v', '1', str(png)], check=True)
-            px = Image.open(png).convert('RGB').resize((8, 8))
-            check(f'{fmt}: decoded frame has real content', len(px.getcolors(64) or []) > 4)
-        # video fitted to a size
-        ext = 'mp4' if not await pg.evaluate('document.querySelector("#vidFormat option[value=mp4]").disabled') else 'webm'
-        await pg.select_option('#vidFormat', ext)
-        await pg.select_option('#expTarget', '1')
-        await pg.click('#btnRenderVideo')
-        await pg.wait_for_function('document.getElementById("progress").hidden', timeout=120000)
-        await pg.wait_for_selector(f'#results a[download$=".{ext}"]')
-        data = await blob_of(pg, f'#results a[download$=".{ext}"]')
-        print(f'     video fitted to 1 MB: {len(data)/1e6:.2f} MB')
-        check('video: lands near/under the size target', len(data) <= 1.1e6, len(data))
+    # ---- no video export: GIF and WebP only
+    check('no video export controls', await pg.evaluate('!document.getElementById("btnRenderVideo") && !document.getElementById("vidGroup")'))
 
     # ---- fades are honoured by the export too
     await pg.select_option('#expTarget', '0')
@@ -646,10 +614,6 @@ async def t_offline(b, url, tmp):
     await pg.click('#btnRenderGif')
     await pg.wait_for_selector('#results a[download$=".gif"]', timeout=60000)
     check('offline: can export a GIF', True)
-    await pg.click('#btnRenderVideo') if await pg.evaluate('!document.getElementById("vidRow").hidden') else None
-    if await pg.evaluate('!document.getElementById("vidRow").hidden'):
-        await pg.wait_for_selector('#results a[download$=".mp4"], #results a[download$=".webm"]', timeout=60000)
-        check('offline: can export video (lazy-loaded muxer is cached)', True)
     check('no console errors', not errs, errs[:3])
     await ctx.close()
 

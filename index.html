@@ -245,9 +245,6 @@
           <button id="btnRenderGif" class="btn primary grow">Render GIF</button>
           <button id="btnRenderWebp" class="btn primary grow">Render WebP</button>
         </div>
-        <div class="row" id="vidRow" hidden>
-          <button id="btnRenderVideo" class="btn primary grow">Render video</button>
-        </div>
         <div id="progress" hidden>
           <div class="bar"><i id="progBar"></i></div>
           <div class="row"><span id="progText" class="mono muted grow"></span><button id="btnCancel" class="btn sm">Cancel</button></div>
@@ -291,7 +288,7 @@
             </select>
           </label>
         </div>
-        <p class="hint">Tries your settings first, then lowers colours, quality, frame rate and size step by step until the file fits. For video it sets the bitrate.</p>
+        <p class="hint">Tries your settings first, then lowers colours, quality, frame rate and size step by step until the file fits.</p>
       </div>
 
       <div class="group">
@@ -337,18 +334,6 @@
         <p class="hint" id="webpWarn" hidden>This browser can't encode WebP. Use Chrome, Edge or Firefox.</p>
       </div>
 
-      <div class="group" id="vidGroup" hidden>
-        <h3>Video options</h3>
-        <div class="row">
-          <label class="grow">Format
-            <select id="vidFormat"><option value="mp4">MP4 (plays everywhere)</option><option value="webm">WebM</option></select>
-          </label>
-          <label class="grow">Quality
-            <select id="vidQuality"><option value="low">Low</option><option value="medium" selected>Medium</option><option value="high">High</option></select>
-          </label>
-        </div>
-        <p class="hint">Video can't loop by itself; most chat apps and sites loop short clips for you. No sound is recorded.</p>
-      </div>
     </div>
     </div>
   </aside>

@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Simple Screen Recorder: a gifcap-style tool that records the screen (or opens a video/GIF/WebP), edits it frame by frame, and exports GIF or animated WebP. Static site, no build step, hosted on GitHub Pages at https://adambeltz2.github.io/Simple-Screen-Recorder/.
+Simple Screen Recorder: a gifcap-style tool that records the screen (or opens a video/GIF/WebP), edits it frame by frame, and exports GIF or animated WebP. Export is GIF or animated WebP only (no video export, by design). Static site, no build step, hosted on GitHub Pages at https://adambeltz2.github.io/Simple-Screen-Recorder/.
 
 The owner (Adam) wants hobby apps **phone-first, self-contained and offline**. Keep it that way.
 
@@ -36,12 +36,10 @@ The owner (Adam) wants hobby apps **phone-first, self-contained and offline**. K
 | `js/ops.js` | Pure frame-list operations (trim, speed, reverse, ping-pong, merge duplicates, insert…) |
 | `js/ingest.js` | `Recorder` (screen capture, pause), video import by seeking, GIF/WebP import via `ImageDecoder`, `fitFrames` |
 | `js/exporter.js` | Renders frames, feeds an encoder (worker, or main-thread fallback); `renderFit` size-limit ladder |
-| `js/video.js` | MP4/WebM export with WebCodecs + the vendored muxers |
 | `encoder-worker.js` | Thin worker wrapper; serialises messages |
 | `lib/encoders.js` | `AnimEncoder`: GIF and WebP encoding with changed-region storage |
 | `lib/webpmux.js` | Hand-written animated-WebP (RIFF/ANMF) muxer |
 | `lib/gifenc/` | Vendored gifenc (MIT), **locally patched** (see below) |
-| `lib/muxers/` | Vendored `mp4-muxer` 5.2.2 and `webm-muxer` 5.1.4 (MIT, unmodified; licences alongside) |
 | `sw.js`, `manifest.webmanifest`, `icons/`, `favicon.ico` | Offline, install, and Android share-target |
 | `tests/smoke.py` | End-to-end test suite (see Testing) |
 
@@ -52,7 +50,7 @@ The owner (Adam) wants hobby apps **phone-first, self-contained and offline**. K
 - **Undo model:** `commit(key, mutate, {soft})` = checkpoint + mutate + notify. For drags: `checkpoint()` on pointer down, mutate during, `touch()` on pointer up, `discardCheckpoint()` if nothing moved. `emit('view')` is for cursor/selection/tool changes only; `emit('change')` (via `touch`) bumps `S.version`, which invalidates rendered export results.
 - **Autosave** (`persist.js`): each *unique* `ImageBitmap` is PNG-encoded once (WeakMap bitmap→key, so duplicated frames and repeat saves cost nothing), then a `meta` record is written, then unused bitmaps are deleted. Order matters: a crash mid-save leaves the previous save intact. `seq` and annotation ids are preserved on restore (`restoreFrame`, `ensureIds`). An empty project only wipes the saved copy after the session has had frames, so opening the page never destroys a save. `hasUnsavedWork()` drives the leave-page warning.
 - **Fades are measured in milliseconds, not frames** (`buildTiming` in `render.js`), computed over whatever list is being drawn (preview frames or the export's resampled list), so they survive deleting, speeding up or resampling. `buildTiming` returns `null` when nothing fades, which keeps the common case free.
-- **Size-limit export** (`renderFit`): a ladder of progressively smaller settings; `renderExport` aborts an attempt early (`OverBudget`) once ≥25% of frames are in and the projection is >1.5× the budget. Video skips the ladder and sets the bitrate from the target (one retry).
+- **Size-limit export** (`renderFit`): a ladder of progressively smaller settings; `renderExport` aborts an attempt early (`OverBudget`) once ≥25% of frames are in and the projection is >1.5× the budget.
 - **Recorder pause**: frames keep arriving but are dropped; `offset` removes the paused span from the timeline so delays stay right.
 - **Apply crop** is available in three places: the floating bar on the preview (`#cropBar`, shown while the Crop tool has a crop), the Crop group at the top of the Edit tab, and Enter.
 - **Crop and resize are non-destructive**, applied only at export. Frames always keep full size. "Apply crop" (button, Enter, or switching tool) is a view change only: when `S.crop` is set and the tool isn't `crop`, the preview canvas shows just the crop region (`viewRect()` in `stage.js`; `drawOverlay` takes an offset). Pointer coords go through `toSrc`, which maps back to full-frame pixels, so annotations stay in source space. Timeline thumbnails still show full frames.
@@ -79,7 +77,7 @@ python3 tests/smoke.py --only core,persist
 SHOTS_DIR=/tmp/shots python3 tests/smoke.py --only phone   # keep phone screenshots
 ```
 
-It serves the repo itself and drives real Chrome (`/usr/bin/google-chrome`, `--no-sandbox`) with Playwright. Needs `ffmpeg`/`ffprobe` and Pillow. Suites: `core`, `export`, `export2` (size limit, MP4/WebM verified with ffprobe, fades, cancel), `persist`, `edit`, `addclip`, `record`, `phone` (Pixel 7 touch emulation: overflow, tap-target size, 16px inputs, sticky preview, finger drags), `assets` (every imported module is in `sw.js` `ASSETS`; every named import exists), `offline` (real service worker, network cut), `theme` (toggle, persistence, contrast, icons).
+It serves the repo itself and drives real Chrome (`/usr/bin/google-chrome`, `--no-sandbox`) with Playwright. Needs `ffmpeg`/`ffprobe` and Pillow. Suites: `core`, `export`, `export2` (size limit, fades, cancel), `persist`, `edit`, `addclip`, `record`, `phone` (Pixel 7 touch emulation: overflow, tap-target size, 16px inputs, sticky preview, finger drags), `assets` (every imported module is in `sw.js` `ASSETS`; every named import exists), `offline` (real service worker, network cut), `theme` (toggle, persistence, contrast, icons).
 
 Run the full suite before pushing anything that touches more than one module. `eslint` with `no-undef` is a good extra check for missing imports, but it can't see a *missing export*; the `assets` suite does.
 
