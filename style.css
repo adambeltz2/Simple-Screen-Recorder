@@ -131,9 +131,13 @@ label.check { flex-direction: row; align-items: center; gap: 8px; color: var(--t
 .fr.in { background: rgba(255,167,51,.14); border-color: rgba(255,167,51,.45); }
 .fr.cur { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .fr.cur .lab { color: var(--text); }
-.status { padding: 5px 14px 7px; font: 12px var(--mono); color: var(--muted); border-top: 1px solid var(--line); display: flex; gap: 14px; flex-wrap: wrap; }
+.status { padding: 5px 14px 7px; font: 12px var(--mono); color: var(--muted); border-top: 1px solid var(--line); display: flex; gap: 14px; flex-wrap: wrap; justify-content: space-between; }
+#status { display: flex; gap: 14px; flex-wrap: wrap; }
 .status b { color: var(--text); font-weight: 600; }
-.status .warn { color: var(--accent); }
+.status .warn, .save.warn { color: var(--accent); }
+.save.ok { color: var(--ok); }
+.restore { margin-top: 10px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--r); background: var(--raise); display: grid; gap: 10px; max-width: 360px; text-align: left; }
+.restore .row { margin: 0; }
 
 /* ---- annotations ---- */
 .annolist { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }

@@ -146,7 +146,84 @@ async def t_export(b, url, tmp):
     await ctx.close()
 
 
-TESTS = {'core': t_core, 'export': t_export}
+PIXHASH = '''(i) => { const f = __app.S.frames[i]; const c = document.createElement('canvas'); c.width = f.bmp.width; c.height = f.bmp.height;
+  const x = c.getContext('2d'); x.drawImage(f.bmp, 0, 0); const d = x.getImageData(0, 0, c.width, c.height).data;
+  let h = 2166136261; for (let k = 0; k < d.length; k += 7) { h ^= d[k]; h = Math.imul(h, 16777619) >>> 0; } return h; }'''
+
+
+async def wait_saved(pg):
+    await pg.evaluate('__app.saveNow()')
+    await pg.wait_for_function('document.getElementById("saveInd").textContent === "Autosaved"', timeout=60000)
+
+
+async def t_persist(b, url, tmp):
+    ctx, pg, errs = await new_page(b, url)
+    check('fresh profile: no restore prompt', await pg.evaluate('document.getElementById("restoreBox").hidden'))
+    await import_video(pg, make_video(tmp, secs=2), fps='5', width=480)
+    await pg.click('#opDup')  # duplicated frames share a bitmap
+    await pg.evaluate('__app.S.sel = {a: 1, b: 1}')
+    await pg.fill('#delayMs', '333'); await pg.click('#opDelay')
+    await pg.evaluate("__app.S.crop = {x: 40, y: 30, w: 200, h: 120}")
+    await pg.click('[data-tool=text]')
+    r = await pg.evaluate('(()=>{const r=document.getElementById("view").getBoundingClientRect();return [r.x,r.y,r.width,r.height]})()')
+    await pg.mouse.click(r[0] + r[2] / 2, r[1] + r[3] / 2)
+    await pg.evaluate("__app.S.annos[0].text = 'hello'; __app.S.version++")  # annotation edit
+    await pg.evaluate("document.getElementById('expBg').value = '#112233'; document.getElementById('expBg').dispatchEvent(new Event('input'))")
+    await wait_saved(pg)
+    before = await pg.evaluate('({n: __app.S.frames.length, d: __app.S.frames.map(f => f.delay), q: __app.S.frames.map(f => f.seq), crop: __app.S.crop, annos: __app.S.annos, bg: __app.S.bg})')
+    h_before = [await pg.evaluate(PIXHASH, i) for i in (0, 3, before['n'] - 1)]
+
+    pg2 = await ctx.new_page()
+    pg2.on('dialog', lambda d: asyncio.ensure_future(d.accept()))
+    errs2 = []
+    pg2.on('pageerror', lambda e: errs2.append(str(e)))
+    pg2.on('console', lambda m: errs2.append(m.text) if m.type == 'error' else None)
+    await pg2.goto(url)
+    await pg2.wait_for_selector('#restoreBox:not([hidden])', timeout=10000)
+    info = await pg2.inner_text('#restoreInfo')
+    check('restore prompt shows frame count', str(before['n']) in info, info)
+    await pg2.click('#restoreGo')
+    await pg2.wait_for_function('window.__app.S.frames.length>0', timeout=30000)
+    after = await pg2.evaluate('({n: __app.S.frames.length, d: __app.S.frames.map(f => f.delay), q: __app.S.frames.map(f => f.seq), crop: __app.S.crop, annos: __app.S.annos, bg: __app.S.bg})')
+    check('restore: same frame count', after['n'] == before['n'], (after['n'], before['n']))
+    check('restore: same delays', after['d'] == before['d'])
+    check('restore: same seq (annotation ranges survive)', after['q'] == before['q'])
+    check('restore: crop kept', after['crop'] == before['crop'], after['crop'])
+    check('restore: annotation kept', len(after['annos']) == 1 and after['annos'][0]['text'] == 'hello' and after['annos'][0]['from'] == before['annos'][0]['from'])
+    check('restore: background kept', after['bg'] == '#112233', after['bg'])
+    h_after = [await pg2.evaluate(PIXHASH, i) for i in (0, 3, after['n'] - 1)]
+    check('restore: pixels identical', h_before == h_after, (h_before, h_after))
+    # new annotations after a restore must not reuse ids
+    await pg2.click('[data-tool=arrow]')
+    r = await pg2.evaluate('(()=>{const r=document.getElementById("view").getBoundingClientRect();return [r.x,r.y,r.width,r.height]})()')
+    await pg2.mouse.move(r[0] + 20, r[1] + 20); await pg2.mouse.down(); await pg2.mouse.move(r[0] + 90, r[1] + 70, steps=4); await pg2.mouse.up()
+    ids = await pg2.evaluate('__app.S.annos.map(a => a.id)')
+    check('restore: new annotation id is unique', len(ids) == 2 and len(set(ids)) == 2, ids)
+
+    # New wipes the saved copy
+    await pg2.click('#btnNew')
+    await pg2.wait_for_timeout(1200)
+    pg3 = await ctx.new_page()
+    await pg3.goto(url)
+    await pg3.wait_for_timeout(800)
+    check('New clears the autosave', await pg3.evaluate('document.getElementById("restoreBox").hidden'))
+
+    # Discard path
+    await import_video(pg3, make_video(tmp, secs=1, name='b.mp4'), fps='5', width=480)
+    await wait_saved(pg3)
+    pg4 = await ctx.new_page()
+    await pg4.goto(url)
+    await pg4.wait_for_selector('#restoreBox:not([hidden])', timeout=10000)
+    await pg4.click('#restoreDrop')
+    pg5 = await ctx.new_page()
+    await pg5.goto(url)
+    await pg5.wait_for_timeout(800)
+    check('Discard clears the autosave', await pg5.evaluate('document.getElementById("restoreBox").hidden'))
+    check('no console errors', not errs and not errs2, (errs + errs2)[:3])
+    await ctx.close()
+
+
+TESTS = {'core': t_core, 'export': t_export, 'persist': t_persist}
 
 
 async def main():

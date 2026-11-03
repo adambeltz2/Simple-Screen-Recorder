@@ -33,6 +33,15 @@ export function makeFrame(bmp, delay) {
   return { id: uid(), seq: _seq++, bmp, delay: Math.max(10, Math.round(delay)), thumb: makeThumb(bmp) };
 }
 
+/** Rebuild a frame loaded from storage, keeping its original `seq` so saved annotations still line up. */
+export function restoreFrame(bmp, delay, seq) {
+  _seq = Math.max(_seq, seq + 1);
+  return { id: uid(), seq, bmp, delay: Math.max(10, Math.round(delay)), thumb: makeThumb(bmp) };
+}
+
+/** After loading saved annotations, make sure new ids never collide with them. */
+export function ensureIds(maxId) { _id = Math.max(_id, maxId + 1); }
+
 export function makeThumb(bmp) {
   const k = Math.min(THUMB_W / bmp.width, THUMB_H / bmp.height);
   const w = Math.max(1, Math.round(bmp.width * k));

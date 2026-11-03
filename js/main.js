@@ -16,8 +16,9 @@ import { renderStrip } from './timeline.js';
 import { stopPlayback, play } from './transport.js';
 import { deleteSelection } from './editpanel.js';
 import { refresh } from './panels.js';
-import { loadProject } from './project.js';
+import { loadProject, offerRestore } from './project.js';
 import { openFile } from './importer.js';
+import { hasUnsavedWork, saveNow } from './persist.js';
 
 // ===========================================================================
 // Keyboard
@@ -59,7 +60,7 @@ window.addEventListener('keydown', (e) => {
 });
 
 window.addEventListener('resize', () => { renderStage(); renderStrip(); });
-window.addEventListener('beforeunload', (e) => { if (S.frames.length) { e.preventDefault(); e.returnValue = ''; } });
+window.addEventListener('beforeunload', (e) => { if (hasUnsavedWork()) { e.preventDefault(); e.returnValue = ''; } });
 
 // ===========================================================================
 // Boot
@@ -72,6 +73,7 @@ if (!canRecord()) {
 }
 
 refresh('change');
+offerRestore();
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   navigator.serviceWorker.register('./sw.js').catch(() => { /* offline support is optional */ });
@@ -91,4 +93,4 @@ if (new URLSearchParams(location.search).get('shared') && window.caches) {
   }).catch(() => {});
 }
 
-window.__app = { S, openFile, loadProject }; // handy for debugging and tests
+window.__app = { S, openFile, loadProject, saveNow }; // handy for debugging and tests

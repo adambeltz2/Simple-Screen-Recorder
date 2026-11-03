@@ -77,6 +77,10 @@
           <button id="emptyOpen" class="btn big"><svg class="ic"><use href="#i-open"/></svg><span>Open video or GIF</span></button>
         </div>
         <p class="hint" id="emptyHint">You can also drop a file anywhere on this page.</p>
+        <div class="restore" id="restoreBox" hidden>
+          <div><b>Pick up where you left off?</b><br><span id="restoreInfo" class="muted"></span></div>
+          <div class="row"><button id="restoreGo" class="btn primary">Restore</button><button id="restoreDrop" class="btn">Discard</button></div>
+        </div>
       </div>
     </div>
 
@@ -286,7 +290,7 @@
 
 <section class="timeline">
   <div class="strip" id="strip" tabindex="0" aria-label="Frames"><div class="strip-inner" id="stripInner"></div></div>
-  <div class="status" id="status">No frames yet</div>
+  <div class="status"><div id="status">No frames yet</div><span id="saveInd" class="save" aria-live="polite"></span></div>
 </section>
 
 <div id="recbar" hidden>
