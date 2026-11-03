@@ -114,7 +114,9 @@ async def t_core(b, url, tmp):
     r = await pg.evaluate('(()=>{const r=document.getElementById("view").getBoundingClientRect();return [r.x,r.y,r.width,r.height]})()')
     await pg.mouse.move(r[0] + r[2] * .25, r[1] + r[3] * .25); await pg.mouse.down()
     await pg.mouse.move(r[0] + r[2] * .75, r[1] + r[3] * .75, steps=6); await pg.mouse.up()
-    await pg.click('#cropApply')
+    check('floating Apply bar shows while cropping', await pg.is_visible('#cropBar'))
+    await pg.click('#cropBarApply')
+    check('Apply bar hides after applying', not await pg.is_visible('#cropBar'))
     check('crop apply shrinks the preview', await canvas_size(pg) == [320, 180], await canvas_size(pg))
 
     # annotation lands in source coords

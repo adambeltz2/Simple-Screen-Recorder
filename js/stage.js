@@ -28,6 +28,9 @@ export function renderStage() {
   const f = S.frames[S.cur];
   view.classList.toggle('hidden', !f);
   $('empty').hidden = !!f;
+  const showCrop = !!f && S.tool === 'crop' && !!S.crop;
+  $('cropBar').hidden = !showCrop;
+  if (showCrop) $('cropBarSize').textContent = `${S.crop.w}×${S.crop.h}`;
   if (!f) return;
   const c = viewRect();
   if (view.width !== c.w || view.height !== c.h) { view.width = c.w; view.height = c.h; }

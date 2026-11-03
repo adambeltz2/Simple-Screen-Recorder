@@ -82,6 +82,11 @@
 
     <div class="stage" id="stage">
       <canvas id="view" width="16" height="9"></canvas>
+      <div class="cropbar" id="cropBar" hidden>
+        <span class="mono muted" id="cropBarSize"></span>
+        <button id="cropBarCancel" class="btn sm">Reset</button>
+        <button id="cropBarApply" class="btn sm primary">Apply crop</button>
+      </div>
       <div class="empty" id="empty">
         <h1>Make a GIF or WebP from your screen</h1>
         <p>Record a window or tab, or open a video, then trim, crop, annotate and export. Everything stays on your device.</p>
@@ -116,6 +121,26 @@
 
     <!-- EDIT -->
     <div class="pane" id="pane-edit">
+      <div class="group">
+        <h3>Crop</h3>
+        <p class="hint">Pick the Crop tool and drag on the preview, then Apply (or press Enter). Exports use the crop either way.</p>
+        <div class="grid4">
+          <label>X<input id="cropX" type="number" min="0"></label>
+          <label>Y<input id="cropY" type="number" min="0"></label>
+          <label>W<input id="cropW" type="number" min="1"></label>
+          <label>H<input id="cropH" type="number" min="1"></label>
+        </div>
+        <div class="row wrap">
+          <button id="cropEdit" class="btn sm">Edit crop</button>
+          <button id="cropApply" class="btn sm primary">Apply crop</button>
+          <select id="cropAspect" aria-label="Aspect ratio">
+            <option value="">Aspect…</option><option value="1">1:1</option><option value="1.7778">16:9</option>
+            <option value="1.3333">4:3</option><option value="0.5625">9:16</option>
+          </select>
+          <button id="cropReset" class="btn sm">Reset</button>
+        </div>
+      </div>
+
       <div class="group">
         <h3>Selection <span id="selInfo" class="mono muted"></span></h3>
         <p class="hint">Click a frame, drag across frames or shift-click to select a range.</p>
@@ -188,26 +213,6 @@
             </select>
           </label>
           <button id="opDedupe" class="btn sm">Run</button>
-        </div>
-      </div>
-
-      <div class="group">
-        <h3>Crop</h3>
-        <p class="hint">Pick the Crop tool and drag on the preview, then Apply (or press Enter). Exports use the crop either way.</p>
-        <div class="grid4">
-          <label>X<input id="cropX" type="number" min="0"></label>
-          <label>Y<input id="cropY" type="number" min="0"></label>
-          <label>W<input id="cropW" type="number" min="1"></label>
-          <label>H<input id="cropH" type="number" min="1"></label>
-        </div>
-        <div class="row wrap">
-          <button id="cropEdit" class="btn sm">Edit crop</button>
-          <button id="cropApply" class="btn sm primary">Apply crop</button>
-          <select id="cropAspect" aria-label="Aspect ratio">
-            <option value="">Aspect…</option><option value="1">1:1</option><option value="1.7778">16:9</option>
-            <option value="1.3333">4:3</option><option value="0.5625">9:16</option>
-          </select>
-          <button id="cropReset" class="btn sm">Reset</button>
         </div>
       </div>
     </div>

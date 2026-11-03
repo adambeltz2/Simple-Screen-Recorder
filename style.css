@@ -156,6 +156,8 @@ label.check { flex-direction: row; align-items: center; gap: 8px; color: var(--t
   background: radial-gradient(circle at 50% 40%, var(--stage-a), var(--stage-b) 75%); }
 #view { max-width: 100%; max-height: 100%; background: #fff; border-radius: 3px; box-shadow: 0 10px 40px var(--shadow); touch-action: none; user-select: none; }
 #view.hidden { visibility: hidden; }
+.cropbar { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; padding: 6px 8px 6px 12px; background: var(--float); border: 1px solid var(--float-line); border-radius: 999px; box-shadow: var(--shadow); font-size: 12px; z-index: 3; }
+.cropbar[hidden] { display: none; }
 .stage.drop::after { content: "Drop to open"; position: absolute; inset: 10px; border: 2px dashed var(--accent); border-radius: 14px; display: grid; place-items: center; font-size: 20px; font-weight: 650; color: var(--accent); background: var(--drop); }
 
 .empty { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; text-align: center; padding: 24px; }

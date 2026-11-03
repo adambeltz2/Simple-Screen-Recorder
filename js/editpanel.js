@@ -165,6 +165,8 @@ $('cropApply').onclick = () => {
   setTool('select');
   toast(`Crop applied: ${S.crop.w}×${S.crop.h}. Reopen the Crop tool to adjust it.`);
 };
+$('cropBarApply').onclick = () => $('cropApply').click();
+$('cropBarCancel').onclick = () => $('cropReset').click();
 $('cropReset').onclick = () => { if (S.crop) commit('crop-reset', (s) => { s.crop = null; }); };
 $('cropAspect').onchange = () => {
   const r = parseFloat($('cropAspect').value);
