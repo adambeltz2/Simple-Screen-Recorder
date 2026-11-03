@@ -1,7 +1,7 @@
 // Entry point: loads every module (each wires up its own part of the page),
 // then handles keyboard shortcuts, the service worker and shared files.
 
-import { S, emit, setCur, commit, undo, redo } from './state.js';
+import { S, emit, setCur, commit, undo, redo, touch } from './state.js';
 import { canRecord } from './ingest.js';
 import { $, ui } from './ui.js';
 import './timeline.js';
@@ -14,7 +14,7 @@ import { setTool } from './stage.js';
 import { curAnno, syncAnnoPanel } from './annopanel.js';
 import { renderStrip } from './timeline.js';
 import { stopPlayback, play } from './transport.js';
-import { deleteSelection } from './editpanel.js';
+import { deleteSelection, copyFrames, cutFrames, pasteFrames, openDelayDialog } from './editpanel.js';
 import { refresh } from './panels.js';
 import { loadProject, offerRestore } from './project.js';
 import { openFile } from './importer.js';
@@ -38,6 +38,12 @@ window.addEventListener('keydown', (e) => {
     syncAnnoPanel(true);
     return;
   }
+  if (mod && !e.altKey && !typing && S.frames.length) {
+    const k = e.key.toLowerCase();
+    if (k === 'c') { e.preventDefault(); copyFrames(); return; }
+    if (k === 'x') { e.preventDefault(); stopPlayback(); cutFrames(); return; }
+    if (k === 'v') { e.preventDefault(); stopPlayback(); pasteFrames(); return; }
+  }
   if (typing || mod || e.altKey || !S.frames.length) return;
 
   switch (e.key) {
@@ -56,6 +62,7 @@ window.addEventListener('keydown', (e) => {
     case 'Enter': if (S.tool === 'crop' && S.crop) { e.preventDefault(); setTool('select'); } break;
     case 'Escape': if (S.selAnno != null) { S.selAnno = null; emit('view'); } else if (S.tool !== 'select') setTool('select'); break;
     case 'v': case 'V': setTool('select'); break;
+    case 'd': case 'D': openDelayDialog(S.cur); break;
   }
 });
 
@@ -93,4 +100,4 @@ if (new URLSearchParams(location.search).get('shared') && window.caches) {
   }).catch(() => {});
 }
 
-window.__app = { S, openFile, loadProject, saveNow }; // handy for debugging and tests
+window.__app = { S, openFile, loadProject, saveNow, setCur, touch }; // handy for debugging and tests

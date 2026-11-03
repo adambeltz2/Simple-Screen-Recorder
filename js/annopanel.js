@@ -66,6 +66,8 @@ function buildAnnoProps() {
         ${t !== 'text' ? '<label>Line width <input type="number" id="pWidth" min="1" max="60"></label>' : '<span></span>'}</div>` : ''}
       ${t === 'rect' || t === 'ring' ? `<label class="check"><input type="checkbox" id="pFill"> ${t === 'rect' ? 'Tinted fill' : 'Soft fill'}</label>` : ''}
       ${t === 'blur' ? '<label>Block size <input type="range" id="pBlock" min="4" max="60"></label>' : ''}
+      <div class="two"><label title="Fade in over this many milliseconds">Fade in (ms) <input type="number" id="pFin" min="0" max="10000" step="100"></label>
+        <label title="Fade out over this many milliseconds">Fade out (ms) <input type="number" id="pFout" min="0" max="10000" step="100"></label></div>
       <label>Shown on frames</label>
       <div class="two"><label>From <input type="number" id="pFrom" min="1"></label><label>To <input type="number" id="pTo" min="1"></label></div>
       <div class="quick">
@@ -78,7 +80,7 @@ function buildAnnoProps() {
     </div>`;
   const set = (id, v) => { const el = $(id); if (el) { if (el.type === 'checkbox') el.checked = !!v; else el.value = v; } };
   set('pText', a.text); set('pSize', Math.round(a.size)); set('pBg', a.bg); set('pColor', a.color);
-  set('pWidth', a.width); set('pFill', a.fill); set('pBlock', a.block);
+  set('pWidth', a.width); set('pFill', a.fill); set('pBlock', a.block); set('pFin', a.fin || 0); set('pFout', a.fout || 0);
   fillAnnoRange();
 }
 
@@ -104,6 +106,8 @@ $('annoProps').addEventListener('input', (e) => {
     case 'pWidth': edit((x) => { x.width = clamp(+t.value || 1, 1, 60); }); break;
     case 'pFill': edit((x) => { x.fill = t.checked; }); break;
     case 'pBlock': edit((x) => { x.block = +t.value; }); break;
+    case 'pFin': edit((x) => { x.fin = clamp(+t.value || 0, 0, 10000); }); break;
+    case 'pFout': edit((x) => { x.fout = clamp(+t.value || 0, 0, 10000); }); break;
   }
 });
 $('annoProps').addEventListener('change', (e) => {

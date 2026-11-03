@@ -223,7 +223,105 @@ async def t_persist(b, url, tmp):
     await ctx.close()
 
 
-TESTS = {'core': t_core, 'export': t_export, 'persist': t_persist}
+async def view_rect(pg):
+    return await pg.evaluate('(()=>{const r=document.getElementById("view").getBoundingClientRect();return [r.x,r.y,r.width,r.height]})()')
+
+
+async def t_edit(b, url, tmp):
+    ctx, pg, errs = await new_page(b, url)
+    await import_video(pg, make_video(tmp, secs=2), fps='5', width=640)
+    n = await pg.evaluate('__app.S.frames.length')
+
+    # ---- copy / paste / cut
+    await pg.evaluate('__app.S.sel = {a: 2, b: 4}; __app.S.cur = 4')
+    await pg.click('#opCopy')
+    await pg.click('#opPaste')
+    check('paste inserts 3 frames', await pg.evaluate('__app.S.frames.length') == n + 3)
+    check('pasted frames are selected after the original range', await pg.evaluate('[__app.S.sel.a, __app.S.sel.b]') == [5, 7])
+    check('paste copies share seq with the source', await pg.evaluate('__app.S.frames[5].seq === __app.S.frames[2].seq'))
+    ids = await pg.evaluate('__app.S.frames.map(f => f.id)')
+    check('pasted frames have unique ids', len(set(ids)) == len(ids))
+    await pg.evaluate('__app.S.sel = {a: 0, b: 1}; __app.S.cur = 0')
+    await pg.click('#opCut')
+    check('cut removes frames', await pg.evaluate('__app.S.frames.length') == n + 1)
+    await pg.evaluate('__app.S.sel = {a: 0, b: 0}')
+    await pg.click('#opPaste')
+    check('paste after cut restores them', await pg.evaluate('__app.S.frames.length') == n + 3)
+    await pg.click('#btnUndo')
+    check('paste is undoable', await pg.evaluate('__app.S.frames.length') == n + 1)
+
+    # ---- delay dialog via double-click on a timeline frame
+    box = await pg.evaluate('(()=>{const r=document.querySelector("#strip .fr").getBoundingClientRect();return [r.x+r.width/2, r.y+r.height/2]})()')
+    await pg.mouse.dblclick(box[0], box[1])
+    await pg.wait_for_selector('#delayDlg[open]')
+    await pg.fill('#delayDlgMs', '777')
+    await pg.click('#delayDlgOk')
+    check('double-click sets a single frame delay', await pg.evaluate('[__app.S.frames[0].delay, __app.S.frames[1].delay]') == [777, 200], await pg.evaluate('[__app.S.frames[0].delay, __app.S.frames[1].delay]'))
+
+    # ---- timeline zoom
+    w0 = await pg.evaluate('getComputedStyle(document.getElementById("strip")).getPropertyValue("--fw")')
+    await pg.click('#zoomIn')
+    w1 = await pg.evaluate('getComputedStyle(document.getElementById("strip")).getPropertyValue("--fw")')
+    check('zoom in makes thumbnails larger', int(w1.replace('px', '')) > int(w0.replace('px', '')), (w0, w1))
+    await pg.click('#zoomOut'); await pg.click('#zoomOut'); await pg.click('#zoomOut')
+    check('zoom out bottoms out and disables the button', await pg.evaluate('document.getElementById("zoomOut").disabled'))
+    await pg.click('#zoomIn'); await pg.click('#zoomIn')
+
+    # ---- text resize handle
+    await pg.click('[data-tool=text]')
+    r = await view_rect(pg)
+    await pg.mouse.click(r[0] + r[2] * .2, r[1] + r[3] * .3)
+    size0 = await pg.evaluate('__app.S.annos[0].size')
+    h = await pg.evaluate("""(async () => { const m = await import('./js/render.js'); const a = __app.S.annos[0]; return m.annoHandles(a)[0]; })()""")
+    k = r[2] / 640
+    await pg.mouse.move(r[0] + h['x'] * k, r[1] + h['y'] * k); await pg.mouse.down()
+    await pg.mouse.move(r[0] + h['x'] * k + 80, r[1] + h['y'] * k, steps=6); await pg.mouse.up()
+    size1 = await pg.evaluate('__app.S.annos[0].size')
+    check('dragging the text handle enlarges the text', size1 > size0 * 1.2, (size0, size1))
+
+    # ---- fades: pixel opacity changes along the timeline
+    await pg.evaluate("""() => { const S = __app.S; S.annos = [{ id: 900, type: 'rect', x1: 100, y1: 100, x2: 500, y2: 260, color: '#ff0000', width: 60, fill: false,
+        text: '', size: 20, bg: false, block: 8, fin: 0, fout: 0, from: -1, to: 1e12 }]; S.selAnno = null; __app.touch(); }""")
+    px = '(() => { const d = document.getElementById("view").getContext("2d").getImageData(100, 180, 1, 1).data; return [d[0], d[1], d[2]]; })()'
+    last = n  # after the earlier edits the frame count differs; use the live value
+    last = (await pg.evaluate('__app.S.frames.length')) - 1
+    await pg.evaluate('__app.setCur(0)'); full0 = await pg.evaluate(px)
+    await pg.evaluate('__app.S.annos[0].fin = 1500; __app.touch(); __app.setCur(0)')
+    faded0 = await pg.evaluate(px)
+    await pg.evaluate(f'__app.setCur({last})'); faded_end = await pg.evaluate(px)
+    dist = lambda a, b: sum(abs(x - y) for x, y in zip(a, b))
+    check('fade-in: first frame is mostly transparent', dist(full0, faded0) > 150, (full0, faded0))
+    check('fade-in: later frame reaches full colour', dist(full0, faded_end) < 60 or faded_end[0] > 200, (full0, faded_end))
+    check('no console errors', not errs, errs[:3])
+    await ctx.close()
+
+
+async def t_addclip(b, url, tmp):
+    ctx, pg, errs = await new_page(b, url)
+    await import_video(pg, make_video(tmp, secs=2), fps='5', width=640)
+    n = await pg.evaluate('__app.S.frames.length')
+    await pg.evaluate('__app.setCur(3)')
+    other = make_video(tmp, secs=1, w=320, h=240, name='small.mp4')
+    await pg.set_input_files('#fileInputAdd', other)
+    await pg.wait_for_selector('#impDlg[open]')
+    title = await pg.inner_text('#impTitle')
+    check('add dialog is titled for adding', 'Add' in title, title)
+    await pg.select_option('#impFps', '5')
+    await pg.click('#impGo')
+    await pg.wait_for_function(f'window.__app.S.frames.length > {n}', timeout=60000)
+    n2 = await pg.evaluate('__app.S.frames.length')
+    check('clip frames were added', n2 == n + 5, (n, n2))
+    sizes = await pg.evaluate('[...new Set(__app.S.frames.map(f => f.bmp.width + "x" + f.bmp.height))]')
+    check('all frames share the project size', sizes == ['640x360'], sizes)
+    check('inserted after the current frame and selected', await pg.evaluate('[__app.S.sel.a, __app.S.sel.b, __app.S.cur]') == [4, 8, 4])
+    await pg.click('#btnUndo')
+    check('add clip is undoable', await pg.evaluate('__app.S.frames.length') == n)
+    check('project was not replaced (no restore of old project size)', await canvas_size(pg) == [640, 360])
+    check('no console errors', not errs, errs[:3])
+    await ctx.close()
+
+
+TESTS = {'core': t_core, 'export': t_export, 'persist': t_persist, 'edit': t_edit, 'addclip': t_addclip}
 
 
 async def main():

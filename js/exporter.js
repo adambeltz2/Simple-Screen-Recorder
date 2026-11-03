@@ -4,7 +4,7 @@
 // The encoder runs in a Web Worker so the page stays responsive; if a worker
 // can't be created it falls back to running on the main thread.
 
-import { drawScene } from './render.js';
+import { drawScene, buildTiming } from './render.js';
 
 /** "Only store changes" presets -> per-channel tolerance (-1 = off). */
 export const DIFF_TOL = { off: -1, exact: 0, light: 3, medium: 8 };
@@ -116,8 +116,9 @@ export async function renderExport(S, X, { onProgress, signal } = {}) {
   canvas.width = w; canvas.height = h;
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
   const view = { sx: region.x, sy: region.y, sw: region.w, sh: region.h, dw: w, dh: h };
-  const grab = (frame) => {
-    drawScene(ctx, frame, view, S.annos, X.bg);
+  const tm = buildTiming(list.map((it) => ({ frame: it.frame, delay: it.delay })), S.annos);
+  const grab = (frame, i) => {
+    drawScene(ctx, frame, view, S.annos, X.bg, tm && tm.at(i));
     return ctx.getImageData(0, 0, w, h).data.buffer;
   };
 
@@ -137,16 +138,18 @@ export async function renderExport(S, X, { onProgress, signal } = {}) {
     let done = 0;
     for (let i = 0; i < nSamples; i++) {
       check();
-      await enc.sample(grab(list[Math.floor((i * list.length) / nSamples)].frame));
+      const si = Math.floor((i * list.length) / nSamples);
+      await enc.sample(grab(list[si].frame, si));
       onProgress && onProgress(++done / total);
       if (enc.kind === 'main') await tick();
     }
     if (needSamples) await enc.palette();
 
     const inflight = [];
-    for (const item of list) {
+    for (let li = 0; li < list.length; li++) {
+      const item = list[li];
       check();
-      inflight.push(enc.frame(grab(item.frame), Math.max(10, Math.round(item.delay))));
+      inflight.push(enc.frame(grab(item.frame, li), Math.max(10, Math.round(item.delay))));
       if (inflight.length >= 3) await inflight.shift(); // keep a few frames in flight, no more
       onProgress && onProgress(++done / total);
       if (enc.kind === 'main') await tick();

@@ -5,6 +5,63 @@ import * as ops from './ops.js';
 import { $, clamp, ui, toast } from './ui.js';
 import { setTool } from './stage.js';
 
+// ---- clipboard ------------------------------------------------------------------
+
+let clip = null; // frames copied with Copy/Cut (frame objects are immutable, so sharing them is safe)
+export const clearClipboard = () => { clip = null; };
+
+export function copyFrames() {
+  const [lo, hi] = selRange();
+  clip = S.frames.slice(lo, hi + 1);
+  toast(`Copied ${clip.length} frame${clip.length === 1 ? '' : 's'}`);
+}
+export function cutFrames() {
+  const [lo, hi] = selRange();
+  if (hi - lo + 1 >= S.frames.length) return toast("Can't cut every frame");
+  clip = S.frames.slice(lo, hi + 1);
+  deleteSelection(true);
+  toast(`Cut ${clip.length} frame${clip.length === 1 ? '' : 's'}`);
+}
+export function pasteFrames() {
+  if (!clip || !clip.length) return toast('Nothing copied yet');
+  const [, hi] = selRange();
+  const at = hi + 1;
+  commit('paste', (s) => {
+    const items = ops.cloneFrames(clip);
+    s.frames = ops.insertAt(s.frames, at, items);
+    s.cur = at;
+    s.sel = { a: at, b: at + items.length - 1 };
+  });
+  toast(`Pasted ${clip.length} frame${clip.length === 1 ? '' : 's'}`);
+}
+$('opCopy').onclick = copyFrames;
+$('opCut').onclick = cutFrames;
+$('opPaste').onclick = pasteFrames;
+
+// ---- one-off frame delay dialog (double-click a frame in the timeline) --------------
+
+let delayRange = null;
+export function openDelayDialog(i = S.cur) {
+  if (!S.frames.length) return;
+  const [lo, hi] = selRange();
+  const inSel = i >= lo && i <= hi;
+  const a = inSel ? lo : i, b = inSel ? hi : i;
+  delayRange = [a, b];
+  $('delayWho').textContent = a === b ? `Frame ${a + 1}` : `Frames ${a + 1} to ${b + 1}`;
+  $('delayDlgMs').value = S.frames[i].delay;
+  $('delayDlg').showModal();
+  $('delayDlgMs').select();
+}
+$('delayDlgCancel').onclick = () => $('delayDlg').close();
+$('delayDlgOk').addEventListener('click', (e) => {
+  e.preventDefault();
+  const ms = parseInt($('delayDlgMs').value, 10);
+  if (!(ms >= 10)) return toast('Delay must be at least 10 ms', true);
+  const [a, b] = delayRange;
+  $('delayDlg').close();
+  commit('delay-one', (s) => { s.frames = ops.setDelay(s.frames, a, b, ms); });
+});
+
 // ===========================================================================
 // Edit operations
 // ===========================================================================
@@ -30,16 +87,16 @@ $('opKeep').onclick = () => {
   if (lo === 0 && hi === S.frames.length - 1) return toast('Select a range first');
   commit('keep', (s) => { s.frames = ops.keep(s.frames, lo, hi); s.cur = 0; s.sel = { a: 0, b: 0 }; });
 };
-export function deleteSelection() {
+export function deleteSelection(quiet = false) {
   const [lo, hi] = selRange();
-  if (hi - lo + 1 >= S.frames.length) return toast("Can't delete every frame. Use New to start over.");
-  commit('delete', (s) => {
+  if (hi - lo + 1 >= S.frames.length) return quiet || toast("Can't delete every frame. Use New to start over.");
+  commit(quiet ? 'cut' : 'delete', (s) => {
     s.frames = ops.del(s.frames, lo, hi);
     s.cur = Math.min(lo, s.frames.length - 1);
     s.sel = { a: s.cur, b: s.cur };
   });
 }
-$('opDelete').onclick = deleteSelection;
+$('opDelete').onclick = () => deleteSelection();
 $('opDup').onclick = () => {
   const [lo, hi] = selRange();
   commit('dup', (s) => {

@@ -2,7 +2,7 @@
 // (crop, select/move, and creating annotations).
 
 import { S, emit, selRange, commit, checkpoint, discardCheckpoint, touch, uid } from './state.js';
-import { drawScene, drawOverlay, hitAnno, annoHandles, hitCrop, annoActive } from './render.js';
+import { drawScene, drawOverlay, hitAnno, annoHandles, hitCrop, annoActive, buildTiming, textBox } from './render.js';
 import { $, $$, clamp, FAR, ui, toast } from './ui.js';
 import { stopPlayback } from './transport.js';
 import { activateTab } from './panels.js';
@@ -15,6 +15,15 @@ const vctx = view.getContext('2d');
 export const isCropped = () => !!(S.crop && S.tool !== 'crop');
 export const viewRect = () => (isCropped() ? S.crop : { x: 0, y: 0, w: S.W, h: S.H });
 
+// Fade timing for the preview, rebuilt only when the project changes.
+let tmKey = { v: -1, frames: null, tm: null };
+function previewTiming() {
+  if (tmKey.v !== S.version || tmKey.frames !== S.frames) {
+    tmKey = { v: S.version, frames: S.frames, tm: buildTiming(S.frames.map((f) => ({ frame: f, delay: f.delay })), S.annos) };
+  }
+  return tmKey.tm;
+}
+
 export function renderStage() {
   const f = S.frames[S.cur];
   view.classList.toggle('hidden', !f);
@@ -22,7 +31,8 @@ export function renderStage() {
   if (!f) return;
   const c = viewRect();
   if (view.width !== c.w || view.height !== c.h) { view.width = c.w; view.height = c.h; }
-  drawScene(vctx, f, { sx: c.x, sy: c.y, sw: c.w, sh: c.h, dw: c.w, dh: c.h }, S.annos, S.bg);
+  const tm = previewTiming();
+  drawScene(vctx, f, { sx: c.x, sy: c.y, sw: c.w, sh: c.h, dw: c.w, dh: c.h }, S.annos, S.bg, tm && tm.at(S.cur));
   const k = c.w / (view.getBoundingClientRect().width || c.w);
   drawOverlay(vctx, S, k, { x: c.x, y: c.y, cropped: isCropped() });
 }
@@ -46,7 +56,7 @@ function makeAnno(type, x1, y1, x2, y2) {
   return {
     id: uid(), type, x1, y1, x2, y2,
     color: $('toolColor').value, width: +$('toolWidth').value, fill: false,
-    text: 'Text', size: Math.max(14, Math.round(S.H * 0.06)), bg: false,
+    text: 'Text', size: Math.max(14, Math.round(S.H * 0.06)), bg: false, fin: 0, fout: 0,
     block: Math.max(6, Math.round(S.W / 80)),
     from: multi ? Math.min(f[lo].seq, f[hi].seq) : f[S.cur].seq,
     to: multi ? Math.max(f[lo].seq, f[hi].seq) : FAR,
@@ -81,7 +91,11 @@ view.addEventListener('pointerdown', (e) => {
     const sel = curAnno();
     if (sel && annoActive(sel, f)) {
       const h = annoHandles(sel).find((hd) => Math.hypot(hd.x - p.x, hd.y - p.y) <= 12 * p.k);
-      if (h) { checkpoint(); drag = { kind: 'anno-handle', id: sel.id, h: h.id, p0: p, moved: false }; return; }
+      if (h) {
+        checkpoint();
+        drag = { kind: 'anno-handle', id: sel.id, h: h.id, p0: p, moved: false, start: { size: sel.size, w: sel.type === 'text' ? textBox(sel).w : 0 } };
+        return;
+      }
     }
     for (let i = S.annos.length - 1; i >= 0; i--) {
       const a = S.annos[i];
@@ -170,7 +184,9 @@ view.addEventListener('pointermove', (e) => {
     }
     case 'anno-handle': {
       const a = S.annos.find((x) => x.id === drag.id);
-      if (a) { if (drag.h === 'p1') { a.x1 = px; a.y1 = py; } else { a.x2 = px; a.y2 = py; } }
+      if (!a) break;
+      if (drag.h === 'size') a.size = clamp(Math.round((drag.start.size * Math.max(8, px - a.x1)) / Math.max(1, drag.start.w)), 6, 400);
+      else if (drag.h === 'p1') { a.x1 = px; a.y1 = py; } else { a.x2 = px; a.y2 = py; }
       break;
     }
     case 'anno-move': {

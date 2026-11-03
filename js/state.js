@@ -5,8 +5,8 @@
 // objects that share the same bitmap), so an undo snapshot is just a shallow
 // copy of the array. That keeps undo cheap even with hundreds of frames.
 
-export const THUMB_W = 96;
-export const THUMB_H = 60;
+export const THUMB_W = 144;
+export const THUMB_H = 90;
 
 export const S = {
   frames: [],       // { id, seq, bmp, delay(ms), thumb }

@@ -8,6 +8,7 @@ import { strip } from './timeline.js';
 import { activateTab } from './panels.js';
 import { clearResults } from './exportpanel.js';
 import { syncAnnoPanel } from './annopanel.js';
+import { clearClipboard } from './editpanel.js';
 
 $('btnUndo').onclick = () => { stopPlayback(); undo(); syncAnnoPanel(true); };
 $('btnRedo').onclick = () => { stopPlayback(); redo(); syncAnnoPanel(true); };
@@ -19,6 +20,7 @@ $('btnNew').onclick = () => {
 export function loadProject({ frames, W, H }) {
   stopPlayback();
   $('restoreBox').hidden = true;
+  clearClipboard();
   clearResults();
   disposeProject();
   resetProject({ frames, W, H });

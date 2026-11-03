@@ -293,3 +293,33 @@ export async function decodeAnimatedImage(file, { maxW }, { onProgress, signal }
   } finally { dec.close(); }
   return { frames, W, H };
 }
+
+// ---------------------------------------------------------------------------
+// Fitting a second clip into an existing project
+// ---------------------------------------------------------------------------
+
+/**
+ * Scale frames to fit (contain) inside W x H, letterboxed on `bg`. Used when
+ * adding another clip to a project, since all frames must share one size.
+ * The input frames' bitmaps are closed; new frames are returned.
+ */
+export async function fitFrames(frames, W, H, bg = '#000', onProgress) {
+  if (frames.every((f) => f.bmp.width === W && f.bmp.height === H)) return frames;
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const x = c.getContext('2d');
+  x.imageSmoothingQuality = 'high';
+  const out = [];
+  for (let i = 0; i < frames.length; i++) {
+    const f = frames[i];
+    const k = Math.min(W / f.bmp.width, H / f.bmp.height);
+    const w = Math.max(1, Math.round(f.bmp.width * k)), h = Math.max(1, Math.round(f.bmp.height * k));
+    x.fillStyle = bg;
+    x.fillRect(0, 0, W, H);
+    x.drawImage(f.bmp, Math.round((W - w) / 2), Math.round((H - h) / 2), w, h);
+    out.push(makeFrame(await createImageBitmap(c), f.delay));
+    f.bmp.close && f.bmp.close();
+    onProgress && onProgress((i + 1) / frames.length);
+  }
+  return out;
+}

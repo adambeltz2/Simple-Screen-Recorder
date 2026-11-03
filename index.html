@@ -120,6 +120,22 @@
           <button id="opDelete" class="btn sm danger">Delete selection</button>
           <button id="opDup" class="btn sm">Duplicate</button>
         </div>
+        <div class="row wrap">
+          <button id="opCopy" class="btn sm" title="Copy (Ctrl+C)">Copy</button>
+          <button id="opCut" class="btn sm" title="Cut (Ctrl+X)">Cut</button>
+          <button id="opPaste" class="btn sm" title="Paste after the selection (Ctrl+V)">Paste</button>
+        </div>
+      </div>
+
+      <div class="group">
+        <h3>Add a clip</h3>
+        <p class="hint">Insert another video, GIF or WebP. It is scaled to fit this project's size.</p>
+        <div class="row">
+          <label class="grow">Insert
+            <select id="addWhere"><option value="after">After the current frame</option><option value="end">At the end</option><option value="start">At the start</option></select>
+          </label>
+          <button id="opAddClip" class="btn sm">Choose…</button>
+        </div>
       </div>
 
       <div class="group">
@@ -144,6 +160,7 @@
           </label>
           <button id="opDelay" class="btn sm">Set</button>
         </div>
+        <p class="hint">Tip: double-click (or double-tap) a frame in the timeline to change just its delay.</p>
         <div class="row wrap">
           <button id="opReverse" class="btn sm">Reverse</button>
           <button id="opPing" class="btn sm" title="Plays forward then backward (whole animation)">Ping-pong</button>
@@ -290,7 +307,8 @@
 
 <section class="timeline">
   <div class="strip" id="strip" tabindex="0" aria-label="Frames"><div class="strip-inner" id="stripInner"></div></div>
-  <div class="status"><div id="status">No frames yet</div><span id="saveInd" class="save" aria-live="polite"></span></div>
+  <div class="status"><div id="status">No frames yet</div><span id="saveInd" class="save" aria-live="polite"></span>
+    <span class="zoom"><button id="zoomOut" class="btn sm icon" aria-label="Zoom timeline out" title="Smaller thumbnails">−</button><button id="zoomIn" class="btn sm icon" aria-label="Zoom timeline in" title="Larger thumbnails">+</button></span></div>
 </section>
 
 <div id="recbar" hidden>
@@ -357,7 +375,20 @@
   </form>
 </dialog>
 
+<dialog id="delayDlg">
+  <form method="dialog">
+    <h2>Frame delay</h2>
+    <p class="hint" id="delayWho"></p>
+    <label>Delay <span class="unit"><input type="number" id="delayDlgMs" min="10" step="10"><i>ms</i></span></label>
+    <div class="dlg-actions">
+      <button type="button" id="delayDlgCancel" class="btn">Cancel</button>
+      <button id="delayDlgOk" class="btn primary" value="default">Set</button>
+    </div>
+  </form>
+</dialog>
+
 <div id="toast" role="status" aria-live="polite"></div>
+<input type="file" id="fileInputAdd" accept="video/*,image/gif,image/webp,.mp4,.m4v,.mov,.webm,.mkv,.gif,.webp" hidden>
 <input type="file" id="fileInput" accept="video/*,image/gif,image/webp,.mp4,.m4v,.mov,.webm,.mkv,.gif,.webp" hidden>
 
 <script type="module" src="js/main.js"></script>

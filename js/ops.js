@@ -9,6 +9,9 @@ const MIN_DELAY = 10;
 
 export const del = (fr, lo, hi) => [...fr.slice(0, lo), ...fr.slice(hi + 1)];
 export const keep = (fr, lo, hi) => fr.slice(lo, hi + 1);
+export const insertAt = (fr, at, items) => [...fr.slice(0, at), ...items, ...fr.slice(at)];
+/** Copies that share bitmaps and `seq` with the originals (like Duplicate). */
+export const cloneFrames = (fr) => fr.map(copy);
 export const duplicate = (fr, lo, hi) => [...fr.slice(0, hi + 1), ...fr.slice(lo, hi + 1).map(copy), ...fr.slice(hi + 1)];
 export const reverse = (fr, lo, hi) => [...fr.slice(0, lo), ...fr.slice(lo, hi + 1).reverse(), ...fr.slice(hi + 1)];
 

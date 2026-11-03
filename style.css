@@ -123,11 +123,12 @@ label.check { flex-direction: row; align-items: center; gap: 8px; color: var(--t
 
 /* ---- timeline ---- */
 .timeline { background: var(--bg2); border-top: 1px solid var(--line); }
-.strip { position: relative; height: 104px; overflow-x: auto; overflow-y: hidden; touch-action: pan-x; outline: none; cursor: pointer; }
+.strip { --fw: 96px; --fh: 60px; position: relative; height: calc(var(--fh) + 44px); overflow-x: auto; overflow-y: hidden; touch-action: pan-x; outline: none; cursor: pointer; }
 .strip-inner { position: relative; height: 100%; }
-.fr { position: absolute; top: 8px; width: 96px; height: 88px; border-radius: 7px; border: 2px solid transparent; background: var(--bg); overflow: hidden; pointer-events: none; }
-.fr canvas { display: block; width: 96px; height: 60px; background: #0a0b0e; }
+.fr { position: absolute; top: 8px; width: var(--fw); height: calc(var(--fh) + 28px); border-radius: 7px; border: 2px solid transparent; background: var(--bg); overflow: hidden; pointer-events: none; }
+.fr canvas { display: block; width: var(--fw); height: var(--fh); background: #0a0b0e; }
 .fr .lab { display: flex; justify-content: space-between; padding: 3px 5px 0; font: 10.5px/1.2 var(--mono); color: var(--muted); }
+.fr.tiny .lab span:last-child { display: none; }
 .fr.in { background: rgba(255,167,51,.14); border-color: rgba(255,167,51,.45); }
 .fr.cur { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .fr.cur .lab { color: var(--text); }
@@ -136,6 +137,8 @@ label.check { flex-direction: row; align-items: center; gap: 8px; color: var(--t
 .status b { color: var(--text); font-weight: 600; }
 .status .warn, .save.warn { color: var(--accent); }
 .save.ok { color: var(--ok); }
+.status .zoom { display: flex; gap: 4px; margin-left: auto; }
+.status .zoom .btn { height: 22px; width: 28px; font-size: 15px; line-height: 1; }
 .restore { margin-top: 10px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--r); background: var(--raise); display: grid; gap: 10px; max-width: 360px; text-align: left; }
 .restore .row { margin: 0; }
 

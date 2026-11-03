@@ -4,6 +4,7 @@
 // Annotation shape (all coordinates are in source-frame pixels):
 //   { id, type:'text'|'arrow'|'rect'|'ring'|'blur',
 //     x1,y1,x2,y2, color, width, fill, text, size, bg, block,
+//     fin, fout,          <- optional fade in/out, in milliseconds
 //     from, to }          <- visible on frames whose `seq` is within [from,to]
 
 export const FONT_STACK = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
@@ -19,6 +20,42 @@ const measureCtx = document.createElement('canvas').getContext('2d');
 const scratch = document.createElement('canvas');
 const scratchCtx = scratch.getContext('2d');
 
+// ---- fades ----------------------------------------------------------------
+
+/**
+ * Fades are measured in time, not frames, so they stay correct after frames
+ * are deleted, sped up or resampled. Build this once per list of
+ * { frame, delay } items (the preview's frames, or an export's resampled
+ * list); `.at(i)` then gives the per-frame timing drawScene needs.
+ * Returns null when no annotation fades, which keeps the common case free.
+ */
+export function buildTiming(items, annos) {
+  if (!annos.some((a) => a.fin > 0 || a.fout > 0)) return null;
+  const spans = new Map();
+  const mid = new Float64Array(items.length);
+  let t = 0;
+  items.forEach((it, i) => {
+    mid[i] = t + it.delay / 2;
+    for (const a of annos) {
+      if (!(a.fin > 0 || a.fout > 0) || !annoActive(a, it.frame)) continue;
+      const sp = spans.get(a.id);
+      if (sp) sp.t1 = t + it.delay; else spans.set(a.id, { t0: t, t1: t + it.delay });
+    }
+    t += it.delay;
+  });
+  return { at: (i) => ({ t: mid[i], spans }) };
+}
+
+function fadeAlpha(a, tm) {
+  if (!tm || !(a.fin > 0 || a.fout > 0)) return 1;
+  const sp = tm.spans.get(a.id);
+  if (!sp) return 1;
+  let k = 1;
+  if (a.fin > 0) k = Math.min(k, (tm.t - sp.t0) / a.fin);
+  if (a.fout > 0) k = Math.min(k, (sp.t1 - tm.t) / a.fout);
+  return Math.max(0, Math.min(1, k));
+}
+
 // ---- text geometry --------------------------------------------------------
 
 export function textBox(a) {
@@ -33,8 +70,9 @@ export function textBox(a) {
 
 // ---- drawing one annotation ----------------------------------------------
 
-function drawAnno(ctx, a, frame) {
+function drawAnno(ctx, a, frame, alpha = 1) {
   ctx.save();
+  ctx.globalAlpha = alpha;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
   ctx.strokeStyle = a.color;
@@ -43,7 +81,7 @@ function drawAnno(ctx, a, frame) {
   switch (a.type) {
     case 'rect': {
       const r = rectOf(a);
-      if (a.fill) { ctx.globalAlpha = 0.28; ctx.fillRect(r.x, r.y, r.w, r.h); ctx.globalAlpha = 1; }
+      if (a.fill) { ctx.globalAlpha = alpha * 0.28; ctx.fillRect(r.x, r.y, r.w, r.h); ctx.globalAlpha = alpha; }
       ctx.strokeRect(r.x, r.y, r.w, r.h);
       break;
     }
@@ -69,9 +107,9 @@ function drawAnno(ctx, a, frame) {
       const r = Math.max(4, Math.hypot(a.x2 - a.x1, a.y2 - a.y1));
       ctx.beginPath();
       ctx.arc(a.x1, a.y1, r, 0, Math.PI * 2);
-      ctx.globalAlpha = 0.2;
+      ctx.globalAlpha = alpha * 0.2;
       ctx.fill();
-      ctx.globalAlpha = 1;
+      ctx.globalAlpha = alpha;
       ctx.stroke();
       break;
     }
@@ -118,7 +156,7 @@ function drawAnno(ctx, a, frame) {
  * Draw `frame` into ctx's top-left (dw x dh) pixels, showing source rect
  * (sx,sy,sw,sh), then the annotations active on that frame.
  */
-export function drawScene(ctx, frame, view, annos, bg) {
+export function drawScene(ctx, frame, view, annos, bg, tm = null) {
   const { sx, sy, sw, sh, dw, dh } = view;
   ctx.save();
   ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -129,7 +167,11 @@ export function drawScene(ctx, frame, view, annos, bg) {
   ctx.drawImage(frame.bmp, sx, sy, sw, sh, 0, 0, dw, dh);
   const kx = dw / sw, ky = dh / sh;
   ctx.setTransform(kx, 0, 0, ky, -sx * kx, -sy * ky);
-  for (const a of annos) if (annoActive(a, frame)) drawAnno(ctx, a, frame);
+  for (const a of annos) {
+    if (!annoActive(a, frame)) continue;
+    const alpha = fadeAlpha(a, tm);
+    if (alpha > 0.004) drawAnno(ctx, a, frame, alpha);
+  }
   ctx.restore();
 }
 
@@ -165,7 +207,7 @@ export function hitAnno(a, px, py, tol) {
 
 /** Draggable points of an annotation: id says which coordinate pair moves. */
 export function annoHandles(a) {
-  if (a.type === 'text') return [];
+  if (a.type === 'text') { const t = textBox(a); return [{ id: 'size', x: t.x + t.w, y: t.y + t.h }]; } // drag to resize the text
   if (a.type === 'ring') return [{ id: 'p2', x: a.x2, y: a.y2 }];
   return [{ id: 'p1', x: a.x1, y: a.y1 }, { id: 'p2', x: a.x2, y: a.y2 }];
 }
