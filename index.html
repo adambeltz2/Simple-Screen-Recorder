@@ -5,10 +5,21 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Simple Screen Recorder</title>
   <meta name="description" content="Record your screen or import a video, edit it frame by frame, and export a GIF or animated WebP. Everything runs in your browser; nothing is uploaded.">
-  <meta name="theme-color" content="#0f1115">
+  <meta name="color-scheme" content="dark light">
+  <meta name="theme-color" content="#0f1115" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="icon" href="icons/icon-32.png" type="image/png" sizes="32x32">
+  <link rel="icon" href="favicon.ico" sizes="48x48">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <script>
+    /* Apply a saved theme choice before first paint so there is no flash. */
+    try {
+      var t = localStorage.getItem('ssr.theme.v1');
+      if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+    } catch (e) { /* storage unavailable: follow the system */ }
+  </script>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -31,6 +42,7 @@
     <symbol id="i-rect" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="2"/></symbol>
     <symbol id="i-ring" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2" fill="currentColor"/></symbol>
     <symbol id="i-blur" viewBox="0 0 24 24"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"/></symbol>
+    <symbol id="i-theme" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/></symbol>
     <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></symbol>
   </defs>
 </svg>
@@ -43,6 +55,7 @@
   <div class="top-actions">
     <button id="btnRecord" class="btn rec"><svg class="ic"><use href="#i-rec"/></svg><span>Record</span></button>
     <button id="btnOpen" class="btn"><svg class="ic"><use href="#i-open"/></svg><span>Open</span></button>
+    <button id="btnTheme" class="btn icon" aria-label="Colour theme: automatic" title="Colour theme: automatic (click to change)"><svg class="ic"><use href="#i-theme"/></svg></button>
     <span class="sep"></span>
     <button id="btnUndo" class="btn icon" title="Undo (Ctrl+Z)" aria-label="Undo"><svg class="ic"><use href="#i-undo"/></svg></button>
     <button id="btnRedo" class="btn icon" title="Redo (Ctrl+Shift+Z)" aria-label="Redo"><svg class="ic"><use href="#i-redo"/></svg></button>

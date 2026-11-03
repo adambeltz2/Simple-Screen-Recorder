@@ -16,9 +16,9 @@ The owner (Adam) wants hobby apps **phone-first, self-contained and offline**. K
 
 | Path | Role |
 |---|---|
-| `index.html`, `style.css` | Page and styles (dark theme, amber accent, CSS variables at top of the stylesheet; `pointer: coarse` block makes touch targets bigger) |
+| `index.html`, `style.css` | Page and styles (amber accent; all colours are CSS variables at the top of the stylesheet, with a dark default, `:root[data-theme=light]`, and a `prefers-color-scheme: light` block for auto; `pointer: coarse` block makes touch targets bigger) |
 | `js/main.js` | Entry point only: imports every module, keyboard shortcuts, service worker registration, share-target intake |
-| `js/ui.js` | `$`, `$$`, `clamp`, formatters, `toast`, `touchScale()`, and the small `ui` flag object |
+| `js/ui.js` | `$`, `$$`, `clamp`, formatters, `toast`, `touchScale()`, theme toggle (`initTheme`), and the small `ui` flag object |
 | `js/state.js` | The single mutable project object `S`, change events, undo/redo |
 | `js/stage.js` | Preview canvas: drawing, crop/select/annotation pointer tools |
 | `js/timeline.js` | Virtualised thumbnail strip, zoom, tap/double-tap |
@@ -41,7 +41,7 @@ The owner (Adam) wants hobby apps **phone-first, self-contained and offline**. K
 | `lib/webpmux.js` | Hand-written animated-WebP (RIFF/ANMF) muxer |
 | `lib/gifenc/` | Vendored gifenc (MIT), **locally patched** (see below) |
 | `lib/muxers/` | Vendored `mp4-muxer` 5.2.2 and `webm-muxer` 5.1.4 (MIT, unmodified; licences alongside) |
-| `sw.js`, `manifest.webmanifest`, `icons/` | Offline, install, and Android share-target |
+| `sw.js`, `manifest.webmanifest`, `icons/`, `favicon.ico` | Offline, install, and Android share-target |
 | `tests/smoke.py` | End-to-end test suite (see Testing) |
 
 ## Design decisions to preserve
@@ -56,6 +56,8 @@ The owner (Adam) wants hobby apps **phone-first, self-contained and offline**. K
 - **Crop and resize are non-destructive**, applied only at export. Frames always keep full size. "Apply crop" (button, Enter, or switching tool) is a view change only: when `S.crop` is set and the tool isn't `crop`, the preview canvas shows just the crop region (`viewRect()` in `stage.js`; `drawOverlay` takes an offset). Pointer coords go through `toSrc`, which maps back to full-frame pixels, so annotations stay in source space. Timeline thumbnails still show full frames.
 - **Delays are milliseconds** everywhere in app state. GIF rounds to centiseconds inside the encoder, carrying the rounding error forward and clamping to a 20 ms minimum.
 - **Recording uses `MediaStreamTrackProcessor`** (not timers or rAF) because the capturing tab is in the background while recording, and background timers are throttled to 1 Hz. Firefox uses a video-element fallback.
+
+- **Theme:** auto / light / dark, cycled by `#btnTheme`, stored in localStorage `ssr.theme.v1`. An inline script in `<head>` applies it before first paint. Never hard-code colours in CSS or canvas chrome; add a variable and define it for both themes. Icons: `favicon.ico` (16/32/48), `icons/icon-32.png`, `icons/apple-touch-icon.png` (180), plus the SVG and PWA icons; all are in `sw.js` `ASSETS`.
 
 ## Gotchas learned the hard way
 
@@ -75,7 +77,7 @@ python3 tests/smoke.py --only core,persist
 SHOTS_DIR=/tmp/shots python3 tests/smoke.py --only phone   # keep phone screenshots
 ```
 
-It serves the repo itself and drives real Chrome (`/usr/bin/google-chrome`, `--no-sandbox`) with Playwright. Needs `ffmpeg`/`ffprobe` and Pillow. Suites: `core`, `export`, `export2` (size limit, MP4/WebM verified with ffprobe, fades, cancel), `persist`, `edit`, `addclip`, `record`, `phone` (Pixel 7 touch emulation: overflow, tap-target size, 16px inputs, sticky preview, finger drags), `assets` (every imported module is in `sw.js` `ASSETS`; every named import exists), `offline` (real service worker, network cut).
+It serves the repo itself and drives real Chrome (`/usr/bin/google-chrome`, `--no-sandbox`) with Playwright. Needs `ffmpeg`/`ffprobe` and Pillow. Suites: `core`, `export`, `export2` (size limit, MP4/WebM verified with ffprobe, fades, cancel), `persist`, `edit`, `addclip`, `record`, `phone` (Pixel 7 touch emulation: overflow, tap-target size, 16px inputs, sticky preview, finger drags), `assets` (every imported module is in `sw.js` `ASSETS`; every named import exists), `offline` (real service worker, network cut), `theme` (toggle, persistence, contrast, icons).
 
 Run the full suite before pushing anything that touches more than one module. `eslint` with `no-undef` is a good extra check for missing imports, but it can't see a *missing export*; the `assets` suite does.
 

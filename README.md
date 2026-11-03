@@ -47,6 +47,8 @@ To run it locally: `python3 -m http.server 8000` in this folder, then open `http
 
 ## Using it on a phone
 
+The header's contrast button switches between automatic (follows your device), light and dark; your choice is remembered.
+
 Install it from the browser menu ("Add to Home screen" / "Install app"); it then works offline. Android browsers can't capture the screen from a web page, so record with your phone's own screen recorder and open that video here. Once installed, you can also use **Share → Simple Screen Recorder** from your gallery or files app to send a video straight in.
 
 ## Browser support

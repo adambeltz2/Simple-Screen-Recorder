@@ -32,3 +32,35 @@ export function toast(msg, isErr = false) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => t.classList.remove('show'), isErr ? 6000 : 3200);
 }
+
+// ---- colour theme: Auto (follow the system) -> Light -> Dark ----------------------------
+
+const THEME_KEY = 'ssr.theme.v1';
+const THEME_NAMES = { auto: 'automatic', light: 'light', dark: 'dark' };
+const THEME_COLOR = { light: '#ffffff', dark: '#0f1115' };
+
+export const currentTheme = () => document.documentElement.getAttribute('data-theme') || 'auto';
+
+function applyTheme(t) {
+  const root = document.documentElement;
+  if (t === 'auto') root.removeAttribute('data-theme'); else root.setAttribute('data-theme', t);
+  try { if (t === 'auto') localStorage.removeItem(THEME_KEY); else localStorage.setItem(THEME_KEY, t); } catch { /* storage unavailable */ }
+  // browser chrome colour: a forced theme overrides the media-query pair in the head
+  document.querySelectorAll('meta[name=theme-color]').forEach((m) => {
+    if (t === 'auto') { m.content = m.media.includes('light') ? THEME_COLOR.light : THEME_COLOR.dark; m.media = m.dataset.media || m.media; }
+    else { m.dataset.media = m.dataset.media || m.media; m.media = 'all'; m.content = THEME_COLOR[t]; }
+  });
+  const b = document.getElementById('btnTheme');
+  if (b) {
+    const label = `Colour theme: ${THEME_NAMES[t]}`;
+    b.setAttribute('aria-label', label);
+    b.title = `${label} (click to change)`;
+  }
+}
+
+export function initTheme() {
+  const b = document.getElementById('btnTheme');
+  if (!b) return;
+  applyTheme(currentTheme());
+  b.onclick = () => applyTheme({ auto: 'light', light: 'dark', dark: 'auto' }[currentTheme()]);
+}

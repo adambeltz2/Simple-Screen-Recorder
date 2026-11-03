@@ -649,7 +649,65 @@ async def t_offline(b, url, tmp):
     await ctx.close()
 
 
-TESTS = {'core': t_core, 'export': t_export, 'persist': t_persist, 'edit': t_edit, 'addclip': t_addclip, 'record': t_record, 'export2': t_export2, 'phone': t_phone, 'assets': t_assets, 'offline': t_offline}
+async def t_theme(b, url, tmp):
+    base = url.rsplit('/', 1)[0]
+    # follows the system preference when nothing is saved
+    for scheme, want_light in (('dark', False), ('light', True)):
+        ctx, pg, errs = await new_page(b, url, color_scheme=scheme)
+        bg = await pg.evaluate('getComputedStyle(document.body).backgroundColor')
+        is_light = sum(int(x) for x in bg[bg.index('(') + 1:-1].split(',')[:3]) > 450
+        check(f'auto theme follows the system ({scheme})', is_light == want_light, bg)
+        await ctx.close()
+    ctx, pg, errs = await new_page(b, url, color_scheme='dark')
+    await import_video(pg, make_video(tmp, secs=1), fps='5', width=480)
+    seen = []
+    for _ in range(3):
+        await pg.click('#btnTheme')
+        seen.append(await pg.evaluate('document.documentElement.getAttribute("data-theme")'))
+        if len(seen) == 1:
+            await shot(pg, 'theme-light')
+    check('toggle cycles auto -> light -> dark -> auto', seen == ['light', 'dark', None], seen)
+    await pg.click('#btnTheme')  # light again
+    light_bg = await pg.evaluate('getComputedStyle(document.body).backgroundColor')
+    await pg.reload()
+    check('forced theme survives a reload', await pg.evaluate('document.documentElement.getAttribute("data-theme")') == 'light')
+    check('no flash: theme is set before scripts run', await pg.evaluate('getComputedStyle(document.body).backgroundColor') == light_bg)
+    check('theme-color follows the forced theme', await pg.evaluate('[...document.querySelectorAll("meta[name=theme-color]")].every(m => m.content === "#ffffff")'))
+    # contrast: text on the panel, muted text, accent text
+    def lum(c):
+        r = [int(x) / 255 for x in c[c.index('(') + 1:-1].split(',')[:3]]
+        r = [v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4 for v in r]
+        return 0.2126 * r[0] + 0.7152 * r[1] + 0.0722 * r[2]
+    async def ratio(sel_fg, sel_bg, prop='color'):
+        fg = await pg.evaluate(f'getComputedStyle(document.querySelector("{sel_fg}")).{prop}')
+        bgc = await pg.evaluate(f'getComputedStyle(document.querySelector("{sel_bg}")).backgroundColor')
+        a, b2 = sorted([lum(fg), lum(bgc)], reverse=True)
+        return (a + 0.05) / (b2 + 0.05)
+    for theme in ('light', 'dark'):
+        await pg.evaluate(f'document.documentElement.setAttribute("data-theme", "{theme}")')
+        r1 = await ratio('.panel .hint', '.panel')
+        r2 = await ratio('.tabs button.on', '.panel')
+        r3 = await ratio('#btnExportTop', '#btnExportTop')
+        check(f'{theme}: muted text contrast >= 4.5', r1 >= 4.5, round(r1, 2))
+        check(f'{theme}: active tab contrast >= 3', r2 >= 3, round(r2, 2))
+        check(f'{theme}: primary button text contrast >= 4.5', r3 >= 4.5, round(r3, 2))
+        await shot(pg, f'theme-{theme}-2')
+    # favicon + icon files are really served
+    import urllib.request
+    for path in ('favicon.ico', 'icons/icon.svg', 'icons/icon-32.png', 'icons/apple-touch-icon.png', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png'):
+        try:
+            code = urllib.request.urlopen(f'{base}/{path}').status
+        except Exception as e:
+            code = str(e)
+        check(f'{path} is served', code == 200, code)
+    from PIL import Image
+    ico = Image.open(ROOT / 'favicon.ico'); check('favicon.ico holds 16/32/48', {(16, 16), (32, 32), (48, 48)} <= set(ico.info.get('sizes', ico.ico.sizes() if hasattr(ico, 'ico') else [])), ico.info)
+    check('apple-touch-icon is 180x180 and opaque', Image.open(ROOT / 'icons/apple-touch-icon.png').size == (180, 180) and Image.open(ROOT / 'icons/apple-touch-icon.png').mode == 'RGB')
+    check('no console errors', not errs, errs[:3])
+    await ctx.close()
+
+
+TESTS = {'core': t_core, 'export': t_export, 'persist': t_persist, 'edit': t_edit, 'addclip': t_addclip, 'record': t_record, 'export2': t_export2, 'phone': t_phone, 'assets': t_assets, 'offline': t_offline, 'theme': t_theme}
 
 
 async def main():

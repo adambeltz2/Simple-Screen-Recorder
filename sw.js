@@ -16,7 +16,7 @@ const ASSETS = [
   'lib/encoders.js', 'lib/webpmux.js',
   'lib/gifenc/index.js', 'lib/gifenc/constants.js', 'lib/gifenc/lzwEncode.js', 'lib/gifenc/stream.js',
   'lib/gifenc/pnnquant2.js', 'lib/gifenc/palettize.js', 'lib/gifenc/color.js', 'lib/gifenc/rgb-packing.js',
-  'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png',
+  'favicon.ico', 'icons/icon.svg', 'icons/icon-32.png', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png', 'icons/apple-touch-icon.png',
 ];
 
 self.addEventListener('install', (event) => {
